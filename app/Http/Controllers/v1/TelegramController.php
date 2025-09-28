@@ -425,9 +425,14 @@ class TelegramController extends Controller
             $statisticsController = new \App\Http\Controllers\v1\StatisticsController();
             $statisticsController->showYearlyReport($userChatId, $year);
         } elseif ($text === '📅 Oy tanlash') {
-            $financeController = new \App\Http\Controllers\v1\FinanceController();
             $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
-            $financeController->showMonthSelection($userChatId, $context);
+            if ($context === 'statistics') {
+                $statisticsController = new \App\Http\Controllers\v1\StatisticsController();
+                $statisticsController->showMonthSelection($userChatId);
+            } else {
+                $financeController = new \App\Http\Controllers\v1\FinanceController();
+                $financeController->showMonthSelection($userChatId, $context);
+            }
         } elseif ($text === '📅 Yil tanlash') {
             $financeController = new \App\Http\Controllers\v1\FinanceController();
             $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
@@ -436,6 +441,15 @@ class TelegramController extends Controller
             $financeController = new \App\Http\Controllers\v1\FinanceController();
             $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
             $financeController->showDaySelection($userChatId, $context);
+        } elseif ($text === '📅 Sana tanlash') {
+            $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
+            if ($context === 'statistics') {
+                $statisticsController = new \App\Http\Controllers\v1\StatisticsController();
+                $statisticsController->showDateSelection($userChatId);
+            } else {
+                $financeController = new \App\Http\Controllers\v1\FinanceController();
+                $financeController->showCustomDateSelection($userChatId, $context);
+            }
         } elseif ($text === '📅 Aniq sana tanlash') {
             $financeController = new \App\Http\Controllers\v1\FinanceController();
             $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
@@ -454,12 +468,17 @@ class TelegramController extends Controller
             
             $monthNum = $monthNames[$monthName] ?? '01';
             
-            $financeController = new \App\Http\Controllers\v1\FinanceController();
             $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
-            if ($context === 'expense') {
-                $financeController->showExpenseView($userChatId, 'month_year', $monthNum . '.' . $year);
+            if ($context === 'statistics') {
+                $statisticsController = new \App\Http\Controllers\v1\StatisticsController();
+                $statisticsController->showMonthlyStatistics($userChatId, $monthNum . '.' . $year);
             } else {
-                $financeController->showIncomeView($userChatId, 'month_year', $monthNum . '.' . $year);
+                $financeController = new \App\Http\Controllers\v1\FinanceController();
+                if ($context === 'expense') {
+                    $financeController->showExpenseView($userChatId, 'month_year', $monthNum . '.' . $year);
+                } else {
+                    $financeController->showIncomeView($userChatId, 'month_year', $monthNum . '.' . $year);
+                }
             }
         } elseif (preg_match('/^\d{4}$/', $text)) {
             // Yil tanlandi (masalan: "2024")
@@ -474,20 +493,26 @@ class TelegramController extends Controller
         } elseif (preg_match('/^\d{2}\.\d{2}\.\d{4}$/', $text)) {
             // Aniq sana tanlandi (masalan: "15.01.2024")
             $date = $text;
-            $financeController = new \App\Http\Controllers\v1\FinanceController();
             
             // Tranzaksiya jarayonini tekshirish
             $transactionData = \Illuminate\Support\Facades\Cache::get("transaction_process_{$userChatId}");
             if ($transactionData && $transactionData['step'] === 'date') {
                 // Tranzaksiya jarayonida - sana tanlash
+                $financeController = new \App\Http\Controllers\v1\FinanceController();
                 $financeController->processDateInput($userChatId, $date);
             } else {
                 // Oddiy ko'rish rejimi
                 $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
-                if ($context === 'expense') {
-                    $financeController->showExpenseView($userChatId, 'date', $date);
+                if ($context === 'statistics') {
+                    $statisticsController = new \App\Http\Controllers\v1\StatisticsController();
+                    $statisticsController->showDateStatistics($userChatId, $date);
                 } else {
-                    $financeController->showIncomeView($userChatId, 'date', $date);
+                    $financeController = new \App\Http\Controllers\v1\FinanceController();
+                    if ($context === 'expense') {
+                        $financeController->showExpenseView($userChatId, 'date', $date);
+                    } else {
+                        $financeController->showIncomeView($userChatId, 'date', $date);
+                    }
                 }
             }
         } elseif ($text === '📅 Bugun') {

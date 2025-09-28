@@ -113,7 +113,7 @@ class StatisticsController extends Controller
     /**
      * Hisobot yaratish
      */
-    private function generateReport($userChatId, $period, $year = null)
+    private function generateReport($userChatId, $period, $year = null, $value = null)
     {
         // Chat ID orqali user_id ni olish
         $user = User::where('chat_id', $userChatId)->first();
@@ -125,11 +125,11 @@ class StatisticsController extends Controller
                 'total_expense' => 0,
                 'balance' => 0,
                 'period' => $period,
-                'date_range' => $this->getDateRange($period, $year)
+                'date_range' => $this->getDateRange($period, $year, $value)
             ];
         }
         
-        $dateRange = $this->getDateRange($period, $year);
+        $dateRange = $this->getDateRange($period, $year, $value);
         
         // Kirimlar kategoriyalar bo'yicha
         $incomes = Transaction::where('user_id', $user->id)
@@ -172,7 +172,7 @@ class StatisticsController extends Controller
     /**
      * Sana oralig'ini aniqlash
      */
-    private function getDateRange($period, $year = null)
+    private function getDateRange($period, $year = null, $value = null)
     {
         $now = Carbon::now();
         
@@ -206,6 +206,38 @@ class StatisticsController extends Controller
                 return [
                     'start' => $now->copy()->subMonth()->startOfMonth(),
                     'end' => $now->copy()->subMonth()->endOfMonth()
+                ];
+            case 'month_year':
+                if ($value) {
+                    $parts = explode('.', $value);
+                    if (count($parts) === 2) {
+                        $month = $parts[0];
+                        $year = $parts[1];
+                        return [
+                            'start' => Carbon::create($year, $month, 1)->startOfDay(),
+                            'end' => Carbon::create($year, $month, 1)->endOfMonth()->endOfDay()
+                        ];
+                    }
+                }
+                return [
+                    'start' => $now->copy()->startOfMonth(),
+                    'end' => $now->copy()->endOfMonth()
+                ];
+            case 'date':
+                if ($value) {
+                    try {
+                        $date = Carbon::createFromFormat('d.m.Y', $value);
+                        return [
+                            'start' => $date->copy()->startOfDay(),
+                            'end' => $date->copy()->endOfDay()
+                        ];
+                    } catch (\Exception $e) {
+                        // Fallback to today
+                    }
+                }
+                return [
+                    'start' => $now->copy()->startOfDay(),
+                    'end' => $now->copy()->endOfDay()
                 ];
             case 'year':
                 $targetYear = $year ?? $now->year;
@@ -253,6 +285,205 @@ class StatisticsController extends Controller
         
         if ($report['incomes']->count() == 0 && $report['expenses']->count() == 0) {
             $message .= "\n\n📝 Bu davrda hech qanday tranzaksiya amalga oshirilmagan.";
+        }
+        
+        return $message;
+    }
+    
+    /**
+     * Oy tanlash klaviaturasini ko'rsatish
+     */
+    public function showMonthSelection($userChatId)
+    {
+        $currentMonth = (int)date('m');
+        $currentYear = (int)date('Y');
+        
+        $months = [
+            '01' => 'Yanvar',
+            '02' => 'Fevral', 
+            '03' => 'Mart',
+            '04' => 'Aprel',
+            '05' => 'May',
+            '06' => 'Iyun',
+            '07' => 'Iyul',
+            '08' => 'Avgust',
+            '09' => 'Sentyabr',
+            '10' => 'Oktyabr',
+            '11' => 'Noyabr',
+            '12' => 'Dekabr'
+        ];
+
+        $keyboard = [];
+        
+        // O'tgan oydan boshlab orqaga qarab 12 oy ko'rsatish
+        for ($i = 1; $i <= 12; $i++) {
+            $monthNum = $currentMonth - $i;
+            $year = $currentYear;
+            
+            // Agar oy 0 yoki manfiy bo'lsa, o'tgan yilga o'tish
+            if ($monthNum <= 0) {
+                $monthNum += 12;
+                $year--;
+            }
+            
+            $monthKey = sprintf('%02d', $monthNum);
+            $monthName = $months[$monthKey];
+            
+            $keyboard[] = ["📊 {$monthName} ({$year})"];
+        }
+        
+        $keyboard[] = ['🔙 Orqaga'];
+
+        Telegram::sendMessage([
+            'chat_id' => $userChatId,
+            'text' => "📊 Statistika uchun oy tanlang:",
+            'reply_markup' => json_encode([
+                'keyboard' => $keyboard,
+                'resize_keyboard' => true,
+                'one_time_keyboard' => true
+            ])
+        ]);
+    }
+    
+    /**
+     * Sana tanlash klaviaturasini ko'rsatish (30 kunlik)
+     */
+    public function showDateSelection($userChatId)
+    {
+        $dates = [];
+        
+        // 2 kun avvaldan boshlab 30 kun ko'rsatish
+        for ($i = 2; $i <= 31; $i++) {
+            $date = date('d.m.Y', strtotime("-{$i} days"));
+            $dates[] = $date;
+        }
+
+        $keyboard = [];
+        $row = [];
+        foreach ($dates as $index => $date) {
+            $row[] = "📊 {$date}";
+            if (count($row) == 2 || $index == count($dates) - 1) {
+                $keyboard[] = $row;
+                $row = [];
+            }
+        }
+        
+        $keyboard[] = ['🔙 Orqaga'];
+
+        Telegram::sendMessage([
+            'chat_id' => $userChatId,
+            'text' => "📊 Statistika uchun sana tanlang:",
+            'reply_markup' => json_encode([
+                'keyboard' => $keyboard,
+                'resize_keyboard' => true,
+                'one_time_keyboard' => true
+            ])
+        ]);
+    }
+    
+    /**
+     * Tanlangan oy bo'yicha statistika ko'rsatish
+     */
+    public function showMonthlyStatistics($userChatId, $monthYear)
+    {
+        $parts = explode('.', $monthYear);
+        if (count($parts) !== 2) return;
+        
+        $month = $parts[0];
+        $year = $parts[1];
+        
+        $report = $this->generateReport($userChatId, 'month_year', null, $month . '.' . $year);
+        $message = $this->formatMonthlyReportMessage($report, $month, $year);
+        
+        Telegram::sendMessage([
+            'chat_id' => $userChatId,
+            'text' => $message,
+            'reply_markup' => json_encode([
+                'keyboard' => $this->getFilterKeyboard(),
+                'resize_keyboard' => true,
+                'one_time_keyboard' => true
+            ])
+        ]);
+    }
+    
+    /**
+     * Tanlangan sana bo'yicha statistika ko'rsatish
+     */
+    public function showDateStatistics($userChatId, $date)
+    {
+        $report = $this->generateReport($userChatId, 'date', null, $date);
+        $message = $this->formatDateReportMessage($report, $date);
+        
+        Telegram::sendMessage([
+            'chat_id' => $userChatId,
+            'text' => $message,
+            'reply_markup' => json_encode([
+                'keyboard' => $this->getFilterKeyboard(),
+                'resize_keyboard' => true,
+                'one_time_keyboard' => true
+            ])
+        ]);
+    }
+    
+    /**
+     * Oylik hisobot xabarini formatlash
+     */
+    private function formatMonthlyReportMessage($report, $month, $year)
+    {
+        $months = [
+            '01' => 'Yanvar', '02' => 'Fevral', '03' => 'Mart', '04' => 'Aprel',
+            '05' => 'May', '06' => 'Iyun', '07' => 'Iyul', '08' => 'Avgust',
+            '09' => 'Sentyabr', '10' => 'Oktyabr', '11' => 'Noyabr', '12' => 'Dekabr'
+        ];
+        
+        $monthName = $months[$month] ?? 'Noma\'lum';
+        
+        $message = "📊 {$monthName} {$year} - Statistika\n\n";
+        $message .= "💵 Jami kirim: " . number_format($report['total_income'], 0, '.', ' ') . " so'm\n";
+        $message .= "💸 Jami chiqim: " . number_format($report['total_expense'], 0, '.', ' ') . " so'm\n";
+        $message .= "💰 Sof foyda: " . number_format($report['net_profit'], 0, '.', ' ') . " so'm\n\n";
+        
+        if (!empty($report['income_categories'])) {
+            $message .= "💵 Kirim kategoriyalari:\n";
+            foreach ($report['income_categories'] as $category) {
+                $message .= "• {$category['name']}: " . number_format($category['total'], 0, '.', ' ') . " so'm\n";
+            }
+            $message .= "\n";
+        }
+        
+        if (!empty($report['expense_categories'])) {
+            $message .= "💸 Chiqim kategoriyalari:\n";
+            foreach ($report['expense_categories'] as $category) {
+                $message .= "• {$category['name']}: " . number_format($category['total'], 0, '.', ' ') . " so'm\n";
+            }
+        }
+        
+        return $message;
+    }
+    
+    /**
+     * Kunlik hisobot xabarini formatlash
+     */
+    private function formatDateReportMessage($report, $date)
+    {
+        $message = "📊 {$date} - Statistika\n\n";
+        $message .= "💵 Jami kirim: " . number_format($report['total_income'], 0, '.', ' ') . " so'm\n";
+        $message .= "💸 Jami chiqim: " . number_format($report['total_expense'], 0, '.', ' ') . " so'm\n";
+        $message .= "💰 Sof foyda: " . number_format($report['net_profit'], 0, '.', ' ') . " so'm\n\n";
+        
+        if (!empty($report['income_categories'])) {
+            $message .= "💵 Kirim kategoriyalari:\n";
+            foreach ($report['income_categories'] as $category) {
+                $message .= "• {$category['name']}: " . number_format($category['total'], 0, '.', ' ') . " so'm\n";
+            }
+            $message .= "\n";
+        }
+        
+        if (!empty($report['expense_categories'])) {
+            $message .= "💸 Chiqim kategoriyalari:\n";
+            foreach ($report['expense_categories'] as $category) {
+                $message .= "• {$category['name']}: " . number_format($category['total'], 0, '.', ' ') . " so'm\n";
+            }
         }
         
         return $message;
@@ -309,6 +540,7 @@ class StatisticsController extends Controller
             ['📅 Bugun', '📅 Kecha'],
             ['📅 Bu hafta', '📅 O\'tgan hafta'],
             ['📅 Bu oy', '📅 O\'tgan oy'],
+            ['📅 Oy tanlash', '📅 Sana tanlash'],
             ['📊 Yillik hisobot'],
             ['🔙 Orqaga']
         ];
