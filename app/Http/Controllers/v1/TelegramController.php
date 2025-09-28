@@ -526,8 +526,11 @@ class TelegramController extends Controller
                 $financeController->processDateInput($userChatId, $date);
             } else {
                 // Oddiy ko'rish rejimi
+                // Statistika kontekstini birinchi navbatda tekshirish
+                $statisticsContext = \Illuminate\Support\Facades\Cache::get("statistics_context_{$userChatId}");
                 $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
-                if ($context === 'statistics') {
+                
+                if ($context === 'statistics' || $statisticsContext) {
                     $statisticsController = new \App\Http\Controllers\v1\StatisticsController();
                     $statisticsController->showDateStatistics($userChatId, $date);
                 } else {
