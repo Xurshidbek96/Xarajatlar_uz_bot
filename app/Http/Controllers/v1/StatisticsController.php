@@ -295,6 +295,9 @@ class StatisticsController extends Controller
      */
     public function showMonthSelection($userChatId)
     {
+        // Statistika kontekstini saqlash
+        \Illuminate\Support\Facades\Cache::put("statistics_context_{$userChatId}", true, 300);
+        
         $currentMonth = (int)date('m');
         $currentYear = (int)date('Y');
         
@@ -350,6 +353,9 @@ class StatisticsController extends Controller
      */
     public function showDateSelection($userChatId)
     {
+        // Statistika kontekstini saqlash
+        \Illuminate\Support\Facades\Cache::put("statistics_context_{$userChatId}", true, 300);
+        
         $dates = [];
         
         // 2 kun avvaldan boshlab 30 kun ko'rsatish
