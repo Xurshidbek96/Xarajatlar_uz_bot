@@ -415,6 +415,15 @@ class TelegramController extends Controller
                     $financeController->showIncomeView($userChatId, 'last_month');
                 }
             }
+        } elseif ($text === '📊 Yillik hisobot') {
+            // Yillik hisobot uchun yil tanlash
+            $statisticsController = new \App\Http\Controllers\v1\StatisticsController();
+            $statisticsController->showYearSelection($userChatId);
+        } elseif (preg_match('/^📅 (\d{4})$/', $text, $matches)) {
+            // Yil tanlandi (masalan: "📅 2024")
+            $year = $matches[1];
+            $statisticsController = new \App\Http\Controllers\v1\StatisticsController();
+            $statisticsController->showYearlyReport($userChatId, $year);
         } elseif ($text === '📅 Oy tanlash') {
             $financeController = new \App\Http\Controllers\v1\FinanceController();
             $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');

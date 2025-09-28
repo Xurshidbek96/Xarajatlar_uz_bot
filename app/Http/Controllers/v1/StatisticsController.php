@@ -113,7 +113,7 @@ class StatisticsController extends Controller
     /**
      * Hisobot yaratish
      */
-    private function generateReport($userChatId, $period)
+    private function generateReport($userChatId, $period, $year = null)
     {
         // Chat ID orqali user_id ni olish
         $user = User::where('chat_id', $userChatId)->first();
@@ -125,11 +125,11 @@ class StatisticsController extends Controller
                 'total_expense' => 0,
                 'balance' => 0,
                 'period' => $period,
-                'date_range' => $this->getDateRange($period)
+                'date_range' => $this->getDateRange($period, $year)
             ];
         }
         
-        $dateRange = $this->getDateRange($period);
+        $dateRange = $this->getDateRange($period, $year);
         
         // Kirimlar kategoriyalar bo'yicha
         $incomes = Transaction::where('user_id', $user->id)
@@ -158,8 +158,11 @@ class StatisticsController extends Controller
         return [
             'incomes' => $incomes->filter(fn($item) => $item->total > 0),
             'expenses' => $expenses->filter(fn($item) => $item->total > 0),
+            'income_categories' => $incomes->map(fn($item) => ['name' => $item->category->name, 'total' => $item->total]),
+            'expense_categories' => $expenses->map(fn($item) => ['name' => $item->category->name, 'total' => $item->total]),
             'total_income' => $totalIncome,
             'total_expense' => $totalExpense,
+            'net_profit' => $balance,
             'balance' => $balance,
             'period' => $period,
             'date_range' => $dateRange
@@ -169,7 +172,7 @@ class StatisticsController extends Controller
     /**
      * Sana oralig'ini aniqlash
      */
-    private function getDateRange($period)
+    private function getDateRange($period, $year = null)
     {
         $now = Carbon::now();
         
@@ -203,6 +206,12 @@ class StatisticsController extends Controller
                 return [
                     'start' => $now->copy()->subMonth()->startOfMonth(),
                     'end' => $now->copy()->subMonth()->endOfMonth()
+                ];
+            case 'year':
+                $targetYear = $year ?? $now->year;
+                return [
+                    'start' => Carbon::create($targetYear, 1, 1)->startOfDay(),
+                    'end' => Carbon::create($targetYear, 12, 31)->endOfDay()
                 ];
             default:
                 return [
@@ -300,6 +309,7 @@ class StatisticsController extends Controller
             ['📅 Bugun', '📅 Kecha'],
             ['📅 Bu hafta', '📅 O\'tgan hafta'],
             ['📅 Bu oy', '📅 O\'tgan oy'],
+            ['📊 Yillik hisobot'],
             ['🔙 Orqaga']
         ];
     }
@@ -331,8 +341,103 @@ class StatisticsController extends Controller
                 return 'month';
             case '📅 O\'tgan oy':
                 return 'last_month';
+            case '📊 Yillik hisobot':
+                return 'yearly';
             default:
                 return 'month';
         }
+    }
+    
+    /**
+     * Yil tanlash klaviaturasini yaratish
+     */
+    public function showYearSelection($userChatId)
+    {
+        $currentYear = date('Y');
+        $years = [];
+        
+        // Oxirgi 5 yil va kelgusi yil
+        for ($i = $currentYear - 4; $i <= $currentYear + 1; $i++) {
+            $years[] = "📅 {$i}";
+        }
+        
+        // Klaviaturani 2 ta ustunda tashkil qilish
+        $keyboard = [];
+        for ($i = 0; $i < count($years); $i += 2) {
+            if (isset($years[$i + 1])) {
+                $keyboard[] = [$years[$i], $years[$i + 1]];
+            } else {
+                $keyboard[] = [$years[$i]];
+            }
+        }
+        
+        $keyboard[] = ['🔙 Orqaga'];
+        
+        $message = "📊 Yillik hisobot uchun yilni tanlang:";
+        
+        Telegram::sendMessage([
+            'chat_id' => $userChatId,
+            'text' => $message,
+            'reply_markup' => json_encode([
+                'keyboard' => $keyboard,
+                'resize_keyboard' => true,
+                'one_time_keyboard' => true
+            ])
+        ]);
+    }
+    
+    /**
+     * Yillik hisobot ko'rsatish
+     */
+    public function showYearlyReport($userChatId, $year)
+    {
+        // Statistika kontekstini saqlash
+        \Illuminate\Support\Facades\Cache::put("statistics_context_{$userChatId}", true, 300);
+        
+        $report = $this->generateReport($userChatId, 'year', $year);
+        $message = $this->formatYearlyReportMessage($report, $year);
+        
+        $keyboard = [
+            ['🔙 Orqaga']
+        ];
+        
+        Telegram::sendMessage([
+            'chat_id' => $userChatId,
+            'text' => $message,
+            'reply_markup' => json_encode([
+                'keyboard' => $keyboard,
+                'resize_keyboard' => true,
+                'one_time_keyboard' => true
+            ])
+        ]);
+    }
+    
+    /**
+     * Yillik hisobot xabarini formatlash
+     */
+    private function formatYearlyReportMessage($report, $year)
+    {
+        $message = "📊 {$year} yillik hisobot\n\n";
+        
+        $message .= "💵 Jami kirimlar: " . number_format($report['total_income'], 0, '.', ' ') . " so'm\n";
+        $message .= "💸 Jami chiqimlar: " . number_format($report['total_expense'], 0, '.', ' ') . " so'm\n";
+        $message .= "💰 Sof foyda: " . number_format($report['net_profit'], 0, '.', ' ') . " so'm\n\n";
+        
+        if (!empty($report['income_categories'])) {
+            $message .= "💵 Kirim kategoriyalari:\n";
+            foreach ($report['income_categories'] as $category) {
+                $message .= "• {$category['name']}: " . number_format($category['total'], 0, '.', ' ') . " so'm\n";
+            }
+            $message .= "\n";
+        }
+        
+        if (!empty($report['expense_categories'])) {
+            $message .= "💸 Chiqim kategoriyalari:\n";
+            foreach ($report['expense_categories'] as $category) {
+                $message .= "• {$category['name']}: " . number_format($category['total'], 0, '.', ' ') . " so'm\n";
+            }
+        }
+        
+        return $message;
     }
 }
