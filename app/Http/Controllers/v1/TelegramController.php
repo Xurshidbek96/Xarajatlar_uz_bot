@@ -363,11 +363,21 @@ class TelegramController extends Controller
             }
         } elseif ($text === '📅 O\'tgan hafta') {
             $financeController = new \App\Http\Controllers\v1\FinanceController();
-            $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
-            if ($context === 'expense') {
-                $financeController->showExpenseView($userChatId, 'last_week');
+            
+            // Statistika kontekstini tekshirish
+            $statisticsContext = \Illuminate\Support\Facades\Cache::get("statistics_context_{$userChatId}");
+            if ($statisticsContext) {
+                // Statistika filtri
+                $statisticsController = new \App\Http\Controllers\v1\StatisticsController();
+                $statisticsController->showStatisticsByFilter($userChatId, '📅 O\'tgan hafta');
             } else {
-                $financeController->showIncomeView($userChatId, 'last_week');
+                // Oddiy ko'rish rejimi
+                $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
+                if ($context === 'expense') {
+                    $financeController->showExpenseView($userChatId, 'last_week');
+                } else {
+                    $financeController->showIncomeView($userChatId, 'last_week');
+                }
             }
         } elseif ($text === '📅 Bu oy') {
             $financeController = new \App\Http\Controllers\v1\FinanceController();

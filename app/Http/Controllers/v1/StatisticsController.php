@@ -189,6 +189,11 @@ class StatisticsController extends Controller
                     'start' => $now->copy()->startOfWeek(),
                     'end' => $now->copy()->endOfWeek()
                 ];
+            case 'last_week':
+                return [
+                    'start' => $now->copy()->subWeek()->startOfWeek(),
+                    'end' => $now->copy()->subWeek()->endOfWeek()
+                ];
             case 'month':
                 return [
                     'start' => $now->copy()->startOfMonth(),
@@ -249,16 +254,40 @@ class StatisticsController extends Controller
      */
     private function getPeriodText($period)
     {
+        $now = Carbon::now();
+        
         switch ($period) {
             case 'today':
-                return 'Bugungi';
+                return 'Bugungi (' . $now->format('d.m.Y') . ')';
             case 'yesterday':
-                return 'Kechagi';
+                return 'Kechagi (' . $now->subDay()->format('d.m.Y') . ')';
             case 'week':
-                return 'Bu haftalik';
+                $startOfWeek = $now->copy()->startOfWeek();
+                $endOfWeek = $now->copy()->endOfWeek();
+                return 'Bu haftalik (' . $startOfWeek->format('d.m') . ' - ' . $endOfWeek->format('d.m.Y') . ')';
+            case 'last_week':
+                $startOfLastWeek = $now->copy()->subWeek()->startOfWeek();
+                $endOfLastWeek = $now->copy()->subWeek()->endOfWeek();
+                return 'O\'tgan haftalik (' . $startOfLastWeek->format('d.m') . ' - ' . $endOfLastWeek->format('d.m.Y') . ')';
             case 'month':
+                return $now->format('F Y') . ' oylik';
+            case 'last_month':
+                $lastMonth = $now->copy()->subMonth();
+                $monthNames = [
+                    'January' => 'Yanvar', 'February' => 'Fevral', 'March' => 'Mart', 'April' => 'Aprel',
+                    'May' => 'May', 'June' => 'Iyun', 'July' => 'Iyul', 'August' => 'Avgust',
+                    'September' => 'Sentyabr', 'October' => 'Oktyabr', 'November' => 'Noyabr', 'December' => 'Dekabr'
+                ];
+                $monthName = $monthNames[$lastMonth->format('F')];
+                return $monthName . ' ' . $lastMonth->format('Y') . ' oylik';
             default:
-                return 'Bu oylik';
+                $monthNames = [
+                    'January' => 'Yanvar', 'February' => 'Fevral', 'March' => 'Mart', 'April' => 'Aprel',
+                    'May' => 'May', 'June' => 'Iyun', 'July' => 'Iyul', 'August' => 'Avgust',
+                    'September' => 'Sentyabr', 'October' => 'Oktyabr', 'November' => 'Noyabr', 'December' => 'Dekabr'
+                ];
+                $monthName = $monthNames[$now->format('F')];
+                return $monthName . ' ' . $now->format('Y') . ' oylik';
         }
     }
     
@@ -269,8 +298,8 @@ class StatisticsController extends Controller
     {
         return [
             ['📅 Bugun', '📅 Kecha'],
-            ['📅 Bu hafta', '📅 Bu oy'],
-            ['📅 O\'tgan oy'],
+            ['📅 Bu hafta', '📅 O\'tgan hafta'],
+            ['📅 Bu oy', '📅 O\'tgan oy'],
             ['🔙 Orqaga']
         ];
     }
@@ -296,6 +325,8 @@ class StatisticsController extends Controller
                 return 'yesterday';
             case '📅 Bu hafta':
                 return 'week';
+            case '📅 O\'tgan hafta':
+                return 'last_week';
             case '📅 Bu oy':
                 return 'month';
             case '📅 O\'tgan oy':
