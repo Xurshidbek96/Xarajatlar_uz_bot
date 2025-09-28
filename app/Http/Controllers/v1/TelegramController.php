@@ -455,6 +455,21 @@ class TelegramController extends Controller
             $financeController = new \App\Http\Controllers\v1\FinanceController();
             $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
             $financeController->showCustomDateSelection($userChatId, $context);
+        } elseif (preg_match('/^📊 (\w+) \((\d{4})\)$/', $text, $matches)) {
+            // Statistika uchun oy tanlandi (masalan: "📊 Yanvar (2024)")
+            $monthName = $matches[1];
+            $year = $matches[2];
+            
+            // Oy nomini raqamga aylantirish
+            $monthNames = [
+                'Yanvar' => '01', 'Fevral' => '02', 'Mart' => '03', 'Aprel' => '04',
+                'May' => '05', 'Iyun' => '06', 'Iyul' => '07', 'Avgust' => '08',
+                'Sentyabr' => '09', 'Oktyabr' => '10', 'Noyabr' => '11', 'Dekabr' => '12'
+            ];
+            
+            $monthNum = $monthNames[$monthName] ?? '01';
+            $statisticsController = new \App\Http\Controllers\v1\StatisticsController();
+            $statisticsController->showMonthlyStatistics($userChatId, $monthNum . '.' . $year);
         } elseif (preg_match('/^(\w+) \((\d{4})\)$/', $text, $matches)) {
             // Oy tanlandi (masalan: "Yanvar (2024)")
             $monthName = $matches[1];
@@ -491,6 +506,11 @@ class TelegramController extends Controller
             } else {
                 $financeController->showIncomeView($userChatId, 'year', $year);
             }
+        } elseif (preg_match('/^📊 (\d{2}\.\d{2}\.\d{4})$/', $text, $matches)) {
+            // Statistika uchun sana tanlandi (masalan: "📊 27.09.2025")
+            $date = $matches[1];
+            $statisticsController = new \App\Http\Controllers\v1\StatisticsController();
+            $statisticsController->showDateStatistics($userChatId, $date);
         } elseif (preg_match('/^\d{2}\.\d{2}\.\d{4}$/', $text)) {
             // Aniq sana tanlandi (masalan: "15.01.2024")
             $date = $text;
