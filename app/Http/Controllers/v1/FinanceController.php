@@ -291,29 +291,6 @@ class FinanceController extends Controller
                     $periodText = "bugungi";
                 }
                 break;
-            case 'month_year':
-                if ($value && strpos($value, '.') !== false) {
-                    $parts = explode('.', $value);
-                    if (count($parts) === 2) {
-                        $month = (int)$parts[0];
-                        $year = (int)$parts[1];
-                        $query->whereMonth('created_at', $month)
-                              ->whereYear('created_at', $year);
-                        $monthNames = [
-                            1 => 'Yanvar', 2 => 'Fevral', 3 => 'Mart', 4 => 'Aprel',
-                            5 => 'May', 6 => 'Iyun', 7 => 'Iyul', 8 => 'Avgust',
-                            9 => 'Sentyabr', 10 => 'Oktyabr', 11 => 'Noyabr', 12 => 'Dekabr'
-                        ];
-                        $periodText = $monthNames[$month] . " {$year}";
-                    } else {
-                        $query->whereDate('created_at', Carbon::today());
-                        $periodText = "bugungi";
-                    }
-                } else {
-                    $query->whereDate('created_at', Carbon::today());
-                    $periodText = "bugungi";
-                }
-                break;
             case 'year':
                 if ($value) {
                     $query->whereYear('created_at', $value);
