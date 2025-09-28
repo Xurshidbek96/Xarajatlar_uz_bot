@@ -253,17 +253,17 @@ class FinanceController extends Controller
                 }
                 break;
             case 'month_year':
-                if ($value) {
+                if ($value && strpos($value, '.') !== false) {
                     $parts = explode('.', $value);
                     if (count($parts) === 2) {
-                        $month = $parts[0];
-                        $year = $parts[1];
+                        $month = (int)$parts[0];
+                        $year = (int)$parts[1];
                         $query->whereMonth('created_at', $month)
                               ->whereYear('created_at', $year);
                         $monthNames = [
-                            '01' => 'Yanvar', '02' => 'Fevral', '03' => 'Mart', '04' => 'Aprel',
-                            '05' => 'May', '06' => 'Iyun', '07' => 'Iyul', '08' => 'Avgust',
-                            '09' => 'Sentyabr', '10' => 'Oktyabr', '11' => 'Noyabr', '12' => 'Dekabr'
+                            1 => 'Yanvar', 2 => 'Fevral', 3 => 'Mart', 4 => 'Aprel',
+                            5 => 'May', 6 => 'Iyun', 7 => 'Iyul', 8 => 'Avgust',
+                            9 => 'Sentyabr', 10 => 'Oktyabr', 11 => 'Noyabr', 12 => 'Dekabr'
                         ];
                         $periodText = $monthNames[$month] . " {$year}";
                     } else {
@@ -385,15 +385,25 @@ class FinanceController extends Controller
             $text .= "📭 {$periodText} kirimlar yo'q";
         }
 
-        // Filtr tugmalari
-        $keyboard = $this->validateTelegramKeyboard([
-            ['📅 Bugun', '📅 Kecha'],
-            ['📅 Bu hafta', '📅 O\'tgan hafta'],
-            ['📅 Bu oy', '📅 O\'tgan oy'],
-            ['📅 Oy tanlash', '📅 Yil tanlash'],
-            ['📅 Kun tanlash'],
-            ['🔙 Orqaga']
-        ], 'Filter Menu');
+        // Filtr tugmalari - sana tanlanganda sodda ko'rinish
+        if ($period === 'date' && $value) {
+            // Sana tanlanganda faqat asosiy tugmalar
+            $keyboard = $this->validateTelegramKeyboard([
+                ['📅 Bugun', '📅 Kecha'],
+                ['📅 Bu oy'],
+                ['🔙 Orqaga']
+            ], 'Date Filter Menu');
+        } else {
+            // Boshqa holatlar uchun to'liq filtr
+            $keyboard = $this->validateTelegramKeyboard([
+                ['📅 Bugun', '📅 Kecha'],
+                ['📅 Bu hafta', '📅 O\'tgan hafta'],
+                ['📅 Bu oy', '📅 O\'tgan oy'],
+                ['📅 Oy tanlash', '📅 Yil tanlash'],
+                ['📅 Kun tanlash'],
+                ['🔙 Orqaga']
+            ], 'Filter Menu');
+        }
 
         Telegram::sendMessage([
             'chat_id' => $userChatId,
@@ -526,15 +536,25 @@ class FinanceController extends Controller
             $text .= "📭 {$periodText} chiqimlar yo'q";
         }
 
-        // Filtr tugmalari
-        $keyboard = $this->validateTelegramKeyboard([
-            ['📅 Bugun', '📅 Kecha'],
-            ['📅 Bu hafta', '📅 O\'tgan hafta'],
-            ['📅 Bu oy', '📅 O\'tgan oy'],
-            ['📅 Oy tanlash', '📅 Yil tanlash'],
-            ['📅 Kun tanlash'],
-            ['🔙 Orqaga']
-        ], 'Expense Filter Menu');
+        // Filtr tugmalari - sana tanlanganda sodda ko'rinish
+        if ($period === 'date' && $value) {
+            // Sana tanlanganda faqat asosiy tugmalar
+            $keyboard = $this->validateTelegramKeyboard([
+                ['📅 Bugun', '📅 Kecha'],
+                ['📅 Bu oy'],
+                ['🔙 Orqaga']
+            ], 'Date Filter Menu');
+        } else {
+            // Boshqa holatlar uchun to'liq filtr
+            $keyboard = $this->validateTelegramKeyboard([
+                ['📅 Bugun', '📅 Kecha'],
+                ['📅 Bu hafta', '📅 O\'tgan hafta'],
+                ['📅 Bu oy', '📅 O\'tgan oy'],
+                ['📅 Oy tanlash', '📅 Yil tanlash'],
+                ['📅 Kun tanlash'],
+                ['🔙 Orqaga']
+            ], 'Expense Filter Menu');
+        }
 
         Telegram::sendMessage([
             'chat_id' => $userChatId,
