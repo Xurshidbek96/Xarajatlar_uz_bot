@@ -291,6 +291,29 @@ class FinanceController extends Controller
                     $periodText = "bugungi";
                 }
                 break;
+            case 'month_year':
+                if ($value) {
+                    $parts = explode('.', $value);
+                    if (count($parts) === 2) {
+                        $month = $parts[0];
+                        $year = $parts[1];
+                        $query->whereMonth('created_at', $month)
+                              ->whereYear('created_at', $year);
+                        $monthNames = [
+                            '01' => 'Yanvar', '02' => 'Fevral', '03' => 'Mart', '04' => 'Aprel',
+                            '05' => 'May', '06' => 'Iyun', '07' => 'Iyul', '08' => 'Avgust',
+                            '09' => 'Sentyabr', '10' => 'Oktyabr', '11' => 'Noyabr', '12' => 'Dekabr'
+                        ];
+                        $periodText = $monthNames[$month] . " {$year}";
+                    } else {
+                        $query->whereDate('created_at', Carbon::today());
+                        $periodText = "bugungi";
+                    }
+                } else {
+                    $query->whereDate('created_at', Carbon::today());
+                    $periodText = "bugungi";
+                }
+                break;
             case 'year':
                 if ($value) {
                     $query->whereYear('created_at', $value);
@@ -845,8 +868,8 @@ class FinanceController extends Controller
         $currentDate = date('d.m.Y');
         $dates = [];
         
-        // Oxirgi 30 kunlik sanalar
-        for ($i = 0; $i < 30; $i++) {
+        // 2 kun avvaldan boshlab 30 kunlik sanalar
+        for ($i = 2; $i <= 31; $i++) {
             $date = date('d.m.Y', strtotime("-{$i} days"));
             $dates[] = $date;
         }
