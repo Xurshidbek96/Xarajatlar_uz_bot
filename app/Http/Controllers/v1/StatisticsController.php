@@ -438,24 +438,32 @@ class StatisticsController extends Controller
         
         $monthName = $months[$month] ?? 'Noma\'lum';
         
-        $message = "📊 {$monthName} {$year} - Statistika\n\n";
-        $message .= "💵 Jami kirim: " . number_format($report['total_income'], 0, '.', ' ') . " so'm\n";
-        $message .= "💸 Jami chiqim: " . number_format($report['total_expense'], 0, '.', ' ') . " so'm\n";
-        $message .= "💰 Sof foyda: " . number_format($report['net_profit'], 0, '.', ' ') . " so'm\n\n";
+        $message = "📊 {$monthName} {$year} hisoboti\n\n";
         
-        if (!empty($report['income_categories'])) {
-            $message .= "💵 Kirim kategoriyalari:\n";
-            foreach ($report['income_categories'] as $category) {
-                $message .= "• {$category['name']}: " . number_format($category['total'], 0, '.', ' ') . " so'm\n";
+        // Kirimlar bo'limi
+        if ($report['incomes']->count() > 0) {
+            $message .= "💰 KIRIMLAR:\n";
+            foreach ($report['incomes'] as $income) {
+                $message .= "• {$income->category->name}: " . number_format($income->total, 0, '.', ' ') . " so'm\n";
             }
-            $message .= "\n";
+            $message .= "Jami kirim: " . number_format($report['total_income'], 0, '.', ' ') . " so'm\n\n";
         }
         
-        if (!empty($report['expense_categories'])) {
-            $message .= "💸 Chiqim kategoriyalari:\n";
-            foreach ($report['expense_categories'] as $category) {
-                $message .= "• {$category['name']}: " . number_format($category['total'], 0, '.', ' ') . " so'm\n";
+        // Chiqimlar bo'limi
+        if ($report['expenses']->count() > 0) {
+            $message .= "💸 CHIQIMLAR:\n";
+            foreach ($report['expenses'] as $expense) {
+                $message .= "• {$expense->category->name}: " . number_format($expense->total, 0, '.', ' ') . " so'm\n";
             }
+            $message .= "Jami chiqim: " . number_format($report['total_expense'], 0, '.', ' ') . " so'm\n\n";
+        }
+        
+        // Balans
+        $balanceEmoji = $report['balance'] >= 0 ? '✅' : '❌';
+        $message .= "{$balanceEmoji} BALANS: " . number_format($report['balance'], 0, '.', ' ') . " so'm";
+        
+        if ($report['incomes']->count() == 0 && $report['expenses']->count() == 0) {
+            $message .= "\n\n📝 Bu davrda hech qanday tranzaksiya amalga oshirilmagan.";
         }
         
         return $message;
@@ -466,24 +474,32 @@ class StatisticsController extends Controller
      */
     private function formatDateReportMessage($report, $date)
     {
-        $message = "📊 {$date} - Statistika\n\n";
-        $message .= "💵 Jami kirim: " . number_format($report['total_income'], 0, '.', ' ') . " so'm\n";
-        $message .= "💸 Jami chiqim: " . number_format($report['total_expense'], 0, '.', ' ') . " so'm\n";
-        $message .= "💰 Sof foyda: " . number_format($report['net_profit'], 0, '.', ' ') . " so'm\n\n";
+        $message = "📊 {$date} hisoboti\n\n";
         
-        if (!empty($report['income_categories'])) {
-            $message .= "💵 Kirim kategoriyalari:\n";
-            foreach ($report['income_categories'] as $category) {
-                $message .= "• {$category['name']}: " . number_format($category['total'], 0, '.', ' ') . " so'm\n";
+        // Kirimlar bo'limi
+        if ($report['incomes']->count() > 0) {
+            $message .= "💰 KIRIMLAR:\n";
+            foreach ($report['incomes'] as $income) {
+                $message .= "• {$income->category->name}: " . number_format($income->total, 0, '.', ' ') . " so'm\n";
             }
-            $message .= "\n";
+            $message .= "Jami kirim: " . number_format($report['total_income'], 0, '.', ' ') . " so'm\n\n";
         }
         
-        if (!empty($report['expense_categories'])) {
-            $message .= "💸 Chiqim kategoriyalari:\n";
-            foreach ($report['expense_categories'] as $category) {
-                $message .= "• {$category['name']}: " . number_format($category['total'], 0, '.', ' ') . " so'm\n";
+        // Chiqimlar bo'limi
+        if ($report['expenses']->count() > 0) {
+            $message .= "💸 CHIQIMLAR:\n";
+            foreach ($report['expenses'] as $expense) {
+                $message .= "• {$expense->category->name}: " . number_format($expense->total, 0, '.', ' ') . " so'm\n";
             }
+            $message .= "Jami chiqim: " . number_format($report['total_expense'], 0, '.', ' ') . " so'm\n\n";
+        }
+        
+        // Balans
+        $balanceEmoji = $report['balance'] >= 0 ? '✅' : '❌';
+        $message .= "{$balanceEmoji} BALANS: " . number_format($report['balance'], 0, '.', ' ') . " so'm";
+        
+        if ($report['incomes']->count() == 0 && $report['expenses']->count() == 0) {
+            $message .= "\n\n📝 Bu davrda hech qanday tranzaksiya amalga oshirilmagan.";
         }
         
         return $message;
@@ -649,25 +665,32 @@ class StatisticsController extends Controller
      */
     private function formatYearlyReportMessage($report, $year)
     {
-        $message = "📊 {$year} yillik hisobot\n\n";
+        $message = "📊 {$year} yillik hisoboti\n\n";
         
-        $message .= "💵 Jami kirimlar: " . number_format($report['total_income'], 0, '.', ' ') . " so'm\n";
-        $message .= "💸 Jami chiqimlar: " . number_format($report['total_expense'], 0, '.', ' ') . " so'm\n";
-        $message .= "💰 Sof foyda: " . number_format($report['net_profit'], 0, '.', ' ') . " so'm\n\n";
-        
-        if (!empty($report['income_categories'])) {
-            $message .= "💵 Kirim kategoriyalari:\n";
-            foreach ($report['income_categories'] as $category) {
-                $message .= "• {$category['name']}: " . number_format($category['total'], 0, '.', ' ') . " so'm\n";
+        // Kirimlar bo'limi
+        if ($report['incomes']->count() > 0) {
+            $message .= "💰 KIRIMLAR:\n";
+            foreach ($report['incomes'] as $income) {
+                $message .= "• {$income->category->name}: " . number_format($income->total, 0, '.', ' ') . " so'm\n";
             }
-            $message .= "\n";
+            $message .= "Jami kirim: " . number_format($report['total_income'], 0, '.', ' ') . " so'm\n\n";
         }
         
-        if (!empty($report['expense_categories'])) {
-            $message .= "💸 Chiqim kategoriyalari:\n";
-            foreach ($report['expense_categories'] as $category) {
-                $message .= "• {$category['name']}: " . number_format($category['total'], 0, '.', ' ') . " so'm\n";
+        // Chiqimlar bo'limi
+        if ($report['expenses']->count() > 0) {
+            $message .= "💸 CHIQIMLAR:\n";
+            foreach ($report['expenses'] as $expense) {
+                $message .= "• {$expense->category->name}: " . number_format($expense->total, 0, '.', ' ') . " so'm\n";
             }
+            $message .= "Jami chiqim: " . number_format($report['total_expense'], 0, '.', ' ') . " so'm\n\n";
+        }
+        
+        // Balans
+        $balanceEmoji = $report['balance'] >= 0 ? '✅' : '❌';
+        $message .= "{$balanceEmoji} BALANS: " . number_format($report['balance'], 0, '.', ' ') . " so'm";
+        
+        if ($report['incomes']->count() == 0 && $report['expenses']->count() == 0) {
+            $message .= "\n\n📝 Bu davrda hech qanday tranzaksiya amalga oshirilmagan.";
         }
         
         return $message;
