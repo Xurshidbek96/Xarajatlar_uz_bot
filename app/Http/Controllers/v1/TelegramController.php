@@ -259,6 +259,7 @@ class TelegramController extends Controller
             \Illuminate\Support\Facades\Cache::put("user_context_{$userChatId}", 'expense', 300);
         } elseif ($text === '📊 Statistika' || $text === 'Statistika') {
             // Statistika funksiyasi
+            \Illuminate\Support\Facades\Cache::put("user_context_{$userChatId}", 'statistics', 300);
             $statisticsController = new \App\Http\Controllers\v1\StatisticsController();
             $statisticsController->showStatistics($userChatId);
         } elseif ($text === '📋 Barcha amaliyotlar' || $text === 'Barcha amaliyotlar') {
