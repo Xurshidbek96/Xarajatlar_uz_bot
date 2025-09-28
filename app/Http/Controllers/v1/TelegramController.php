@@ -484,8 +484,11 @@ class TelegramController extends Controller
             
             $monthNum = $monthNames[$monthName] ?? '01';
             
+            // Statistika kontekstini birinchi navbatda tekshirish
+            $statisticsContext = \Illuminate\Support\Facades\Cache::get("statistics_context_{$userChatId}");
             $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
-            if ($context === 'statistics') {
+            
+            if ($context === 'statistics' || $statisticsContext) {
                 $statisticsController = new \App\Http\Controllers\v1\StatisticsController();
                 $statisticsController->showMonthlyStatistics($userChatId, $monthNum . '.' . $year);
             } else {
