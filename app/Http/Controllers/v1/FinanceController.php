@@ -217,6 +217,18 @@ class FinanceController extends Controller
                       ->whereYear('created_at', Carbon::now()->year);
                 $periodText = "bu oydagi";
                 break;
+            case 'last_month':
+                $lastMonth = Carbon::now()->subMonth();
+                $query->whereMonth('created_at', $lastMonth->month)
+                      ->whereYear('created_at', $lastMonth->year);
+                $periodText = "o'tgan oydagi";
+                break;
+            case 'last_month':
+                $lastMonth = Carbon::now()->subMonth();
+                $query->whereMonth('created_at', $lastMonth->month)
+                      ->whereYear('created_at', $lastMonth->year);
+                $periodText = "o'tgan oydagi";
+                break;
             case 'month_year':
                 if ($value) {
                     $parts = explode('.', $value);
@@ -354,8 +366,9 @@ class FinanceController extends Controller
         $keyboard = $this->validateTelegramKeyboard([
             ['📅 Bugun', '📅 Kecha'],
             ['📅 Bu hafta', '📅 O\'tgan hafta'],
-            ['📅 Bu oy', '📅 Oy tanlash'],
-            ['📅 Yil tanlash', '📅 Kun tanlash'],
+            ['📅 Bu oy', '📅 O\'tgan oy'],
+            ['📅 Oy tanlash', '📅 Yil tanlash'],
+            ['📅 Kun tanlash'],
             ['🔙 Orqaga']
         ], 'Filter Menu');
 
@@ -494,8 +507,9 @@ class FinanceController extends Controller
         $keyboard = $this->validateTelegramKeyboard([
             ['📅 Bugun', '📅 Kecha'],
             ['📅 Bu hafta', '📅 O\'tgan hafta'],
-            ['📅 Bu oy', '📅 Oy tanlash'],
-            ['📅 Yil tanlash', '📅 Kun tanlash'],
+            ['📅 Bu oy', '📅 O\'tgan oy'],
+            ['📅 Oy tanlash', '📅 Yil tanlash'],
+            ['📅 Kun tanlash'],
             ['🔙 Orqaga']
         ], 'Expense Filter Menu');
 

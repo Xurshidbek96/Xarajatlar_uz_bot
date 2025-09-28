@@ -190,6 +190,15 @@ class StatisticsController extends Controller
                     'end' => $now->copy()->endOfWeek()
                 ];
             case 'month':
+                return [
+                    'start' => $now->copy()->startOfMonth(),
+                    'end' => $now->copy()->endOfMonth()
+                ];
+            case 'last_month':
+                return [
+                    'start' => $now->copy()->subMonth()->startOfMonth(),
+                    'end' => $now->copy()->subMonth()->endOfMonth()
+                ];
             default:
                 return [
                     'start' => $now->copy()->startOfMonth(),
@@ -261,6 +270,7 @@ class StatisticsController extends Controller
         return [
             ['📅 Bugun', '📅 Kecha'],
             ['📅 Bu hafta', '📅 Bu oy'],
+            ['📅 O\'tgan oy'],
             ['🔙 Orqaga']
         ];
     }
@@ -287,6 +297,9 @@ class StatisticsController extends Controller
             case '📅 Bu hafta':
                 return 'week';
             case '📅 Bu oy':
+                return 'month';
+            case '📅 O\'tgan oy':
+                return 'last_month';
             default:
                 return 'month';
         }

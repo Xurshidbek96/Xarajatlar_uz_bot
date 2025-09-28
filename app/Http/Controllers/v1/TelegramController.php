@@ -387,6 +387,24 @@ class TelegramController extends Controller
                     $financeController->showIncomeView($userChatId, 'this_month');
                 }
             }
+        } elseif ($text === '📅 O\'tgan oy') {
+            $financeController = new \App\Http\Controllers\v1\FinanceController();
+            
+            // Statistika kontekstini tekshirish
+            $statisticsContext = \Illuminate\Support\Facades\Cache::get("statistics_context_{$userChatId}");
+            if ($statisticsContext) {
+                // Statistika filtri
+                $statisticsController = new \App\Http\Controllers\v1\StatisticsController();
+                $statisticsController->showStatisticsByFilter($userChatId, '📅 O\'tgan oy');
+            } else {
+                // Oddiy ko'rish rejimi
+                $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
+                if ($context === 'expense') {
+                    $financeController->showExpenseView($userChatId, 'last_month');
+                } else {
+                    $financeController->showIncomeView($userChatId, 'last_month');
+                }
+            }
         } elseif ($text === '📅 Oy tanlash') {
             $financeController = new \App\Http\Controllers\v1\FinanceController();
             $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
