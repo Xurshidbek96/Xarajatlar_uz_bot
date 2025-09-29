@@ -223,21 +223,15 @@ class FinanceController extends Controller
                       ->whereYear('created_at', $lastMonth->year);
                 $periodText = "o'tgan oydagi";
                 break;
-            case 'last_month':
-                $lastMonth = Carbon::now()->subMonth();
-                $query->whereMonth('created_at', $lastMonth->month)
-                      ->whereYear('created_at', $lastMonth->year);
-                $periodText = "o'tgan oydagi";
-                break;
             case 'month_year':
-                \Log::info("DEBUG EXPENSE: period={$period}, value={$value}");
+                Log::info("DEBUG EXPENSE: period={$period}, value={$value}");
                 if ($value && strpos($value, '.') !== false) {
                     $parts = explode('.', $value);
-                    \Log::info("DEBUG EXPENSE: parts=" . json_encode($parts));
+                    Log::info("DEBUG EXPENSE: parts=" . json_encode($parts));
                     if (count($parts) === 2) {
                         $month = (int)$parts[0];
                         $year = (int)$parts[1];
-                        \Log::info("DEBUG EXPENSE: month={$month}, year={$year}");
+                        Log::info("DEBUG EXPENSE: month={$month}, year={$year}");
                         $query->whereMonth('created_at', $month)
                               ->whereYear('created_at', $year);
                         $monthNames = [
@@ -247,12 +241,12 @@ class FinanceController extends Controller
                         ];
                         $periodText = $monthNames[$month] . " {$year}";
                     } else {
-                        \Log::info("DEBUG EXPENSE: Invalid parts count, using today");
+                        Log::info("DEBUG EXPENSE: Invalid parts count, using today");
                         $query->whereDate('created_at', Carbon::today());
                         $periodText = "bugungi";
                     }
                 } else {
-                    \Log::info("DEBUG EXPENSE: No value or no dot, using today");
+                    Log::info("DEBUG EXPENSE: No value or no dot, using today");
                     $query->whereDate('created_at', Carbon::today());
                     $periodText = "bugungi";
                 }
