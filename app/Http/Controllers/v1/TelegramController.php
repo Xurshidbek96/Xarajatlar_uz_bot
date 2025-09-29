@@ -626,6 +626,40 @@ class TelegramController extends Controller
                     $financeController->showIncomeView($userChatId, 'date', date('d.m.Y', strtotime('-1 week')));
                 }
             }
+        } elseif ($text === '⬅️ Oldingi') {
+            // Pagination - Previous page
+            $financeController = new \App\Http\Controllers\v1\FinanceController();
+            $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
+            $currentPage = \Illuminate\Support\Facades\Cache::get("pagination_page_{$userChatId}", 1);
+            $currentPeriod = \Illuminate\Support\Facades\Cache::get("pagination_period_{$userChatId}", 'today');
+            $currentValue = \Illuminate\Support\Facades\Cache::get("pagination_value_{$userChatId}", null);
+            
+            if ($currentPage > 1) {
+                $newPage = $currentPage - 1;
+                \Illuminate\Support\Facades\Cache::put("pagination_page_{$userChatId}", $newPage, 300);
+                
+                if ($context === 'expense') {
+                    $financeController->showExpenseView($userChatId, $currentPeriod, $currentValue, $newPage);
+                } else {
+                    $financeController->showIncomeView($userChatId, $currentPeriod, $currentValue, $newPage);
+                }
+            }
+        } elseif ($text === 'Keyingi ➡️') {
+            // Pagination - Next page
+            $financeController = new \App\Http\Controllers\v1\FinanceController();
+            $context = \Illuminate\Support\Facades\Cache::get("user_context_{$userChatId}", 'income');
+            $currentPage = \Illuminate\Support\Facades\Cache::get("pagination_page_{$userChatId}", 1);
+            $currentPeriod = \Illuminate\Support\Facades\Cache::get("pagination_period_{$userChatId}", 'today');
+            $currentValue = \Illuminate\Support\Facades\Cache::get("pagination_value_{$userChatId}", null);
+            
+            $newPage = $currentPage + 1;
+            \Illuminate\Support\Facades\Cache::put("pagination_page_{$userChatId}", $newPage, 300);
+            
+            if ($context === 'expense') {
+                $financeController->showExpenseView($userChatId, $currentPeriod, $currentValue, $newPage);
+            } else {
+                $financeController->showIncomeView($userChatId, $currentPeriod, $currentValue, $newPage);
+            }
         } else {
             // Tranzaksiya jarayonini tekshirish
             $transactionData = \Illuminate\Support\Facades\Cache::get("transaction_process_{$userChatId}");

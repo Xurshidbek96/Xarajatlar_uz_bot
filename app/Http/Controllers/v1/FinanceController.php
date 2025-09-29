@@ -19,21 +19,21 @@ class FinanceController extends Controller
             Log::error("Telegram keyboard error: Keyboard is not an array in context: $context");
             return [];
         }
-        
+
         $fixedKeyboard = [];
         $hasErrors = false;
-        
+
         foreach ($keyboard as $rowIndex => $row) {
             if (!is_array($row)) {
                 Log::error("Telegram keyboard error: Row $rowIndex is not an array in context: $context");
                 $hasErrors = true;
                 continue;
             }
-            
+
             if (empty($row)) {
                 continue; // Skip empty rows
             }
-            
+
             $fixedRow = [];
             foreach ($row as $buttonIndex => $button) {
                 if ($button === null) {
@@ -41,7 +41,7 @@ class FinanceController extends Controller
                     $hasErrors = true;
                     continue;
                 }
-                
+
                 if (!is_string($button)) {
                     // Handle different types more carefully
                     if (is_array($button)) {
@@ -58,26 +58,26 @@ class FinanceController extends Controller
                         $hasErrors = true;
                     }
                 }
-                
+
                 $button = trim($button);
                 if (empty($button)) {
                     Log::error("Telegram keyboard error: Button at row $rowIndex, position $buttonIndex is empty in context: $context");
                     $hasErrors = true;
                     continue;
                 }
-                
+
                 $fixedRow[] = $button;
             }
-            
+
             if (!empty($fixedRow)) {
                 $fixedKeyboard[] = $fixedRow;
             }
         }
-        
+
         if ($hasErrors) {
             Log::warning("Telegram keyboard warning: Keyboard had errors and was fixed in context: $context");
         }
-        
+
         return $fixedKeyboard;
     }
 
@@ -143,12 +143,12 @@ class FinanceController extends Controller
     public function showIncomeCategories($userChatId)
     {
         $categories = Category::where('type', 'income')->get();
-        
+
         $keyboard = [];
         foreach ($categories as $category) {
             $keyboard[] = [$category->name];
         }
-        
+
         $keyboard[] = ['🔙 Orqaga'];
         $keyboard = $this->validateTelegramKeyboard($keyboard, 'Income Categories');
 
@@ -166,12 +166,12 @@ class FinanceController extends Controller
     public function showExpenseCategories($userChatId)
     {
         $categories = Category::where('type', 'expense')->get();
-        
+
         $keyboard = [];
         foreach ($categories as $category) {
             $keyboard[] = [$category->name];
         }
-        
+
         $keyboard[] = ['🔙 Orqaga'];
 
         Telegram::sendMessage([
@@ -185,8 +185,12 @@ class FinanceController extends Controller
         ]);
     }
 
-    public function showIncomeView($userChatId, $period = 'today', $value = null)
+    public function showIncomeView($userChatId, $period = 'today', $value = null, $page = 1)
     {
+        // Cache pagination parameters
+        \Illuminate\Support\Facades\Cache::put("pagination_page_{$userChatId}", $page, 300);
+        \Illuminate\Support\Facades\Cache::put("pagination_period_{$userChatId}", $period, 300);
+        \Illuminate\Support\Facades\Cache::put("pagination_value_{$userChatId}", $value, 300);
         $user = User::where('chat_id', $userChatId)->first();
         if (!$user) return;
 
@@ -322,22 +326,33 @@ class FinanceController extends Controller
         $transactions = $query->orderBy('created_at', 'desc')->get();
         $total = $transactions->sum('amount');
 
-        $text = "💵 Kirimlar - {$periodText}\n\n";
-        
-        if ($transactions->count() > 0) {
+        // Pagination
+        $perPage = 10;
+        $totalTransactions = $transactions->count();
+        $totalPages = ceil($totalTransactions / $perPage);
+        $offset = ($page - 1) * $perPage;
+        $paginatedTransactions = $transactions->slice($offset, $perPage);
+
+        $text = "💵 Kirimlar - {$periodText}\n";
+        if ($totalPages > 1) {
+            $text .= "📄 Sahifa {$page}/{$totalPages}\n";
+        }
+        $text .= "\n";
+
+        if ($paginatedTransactions->count() > 0) {
             // Bugungi va kechagi uchun sana sarlavhasi qo'shish
             $showDateHeader = in_array($period, ['today', 'yesterday']);
-            
+
             if ($showDateHeader) {
                 $headerDate = $period === 'today' ? Carbon::today() : Carbon::yesterday();
                 $text .= "📅 " . $headerDate->format('d.m.Y') . "\n\n";
             }
-            
-            foreach ($transactions as $transaction) {
+
+            foreach ($paginatedTransactions as $transaction) {
                 $transactionDate = Carbon::parse($transaction->created_at);
                 $category = $transaction->category ? $transaction->category->name : 'Kategoriyasiz';
                 $description = $transaction->description ? " - {$transaction->description}" : "";
-                
+
                 if ($showDateHeader) {
                     // Bugungi/kechagi uchun faqat soat:daqiqa
                     $time = $transactionDate->format('H:i');
@@ -347,7 +362,7 @@ class FinanceController extends Controller
                     $dateTime = $transactionDate->format('d.m.Y H:i');
                     $text .= "📅 {$dateTime}\n";
                 }
-                
+
                 $text .= "📂 {$category}\n";
                 $text .= "💰 " . number_format($transaction->amount, 0, '.', ' ') . " so'm\n";
                 if ($description) {
@@ -355,7 +370,7 @@ class FinanceController extends Controller
                 }
                 $text .= "\n";
             }
-            
+
             $text .= "💵 Jami: " . number_format($total, 0, '.', ' ') . " so'm";
         } else {
             $text .= "📭 {$periodText} kirimlar yo'q";
@@ -364,21 +379,55 @@ class FinanceController extends Controller
         // Filtr tugmalari - sana tanlanganda sodda ko'rinish
         if ($period === 'date' && $value) {
             // Sana tanlanganda faqat asosiy tugmalar
-            $keyboard = $this->validateTelegramKeyboard([
+            $keyboard = [];
+            
+            // Pagination tugmalari
+            if ($totalPages > 1) {
+                $paginationRow = [];
+                if ($page > 1) {
+                    $paginationRow[] = "⬅️ Oldingi";
+                }
+                if ($page < $totalPages) {
+                    $paginationRow[] = "Keyingi ➡️";
+                }
+                if (!empty($paginationRow)) {
+                    $keyboard[] = $paginationRow;
+                }
+            }
+            
+            $keyboard = array_merge($keyboard, [
                 ['📅 Bugun', '📅 Kecha'],
                 ['📅 Bu oy'],
                 ['🔙 Orqaga']
-            ], 'Date Filter Menu');
+            ]);
+            $keyboard = $this->validateTelegramKeyboard($keyboard, 'Date Filter Menu');
         } else {
             // Boshqa holatlar uchun to'liq filtr
-            $keyboard = $this->validateTelegramKeyboard([
+            $keyboard = [];
+            
+            // Pagination tugmalari
+            if ($totalPages > 1) {
+                $paginationRow = [];
+                if ($page > 1) {
+                    $paginationRow[] = "⬅️ Oldingi";
+                }
+                if ($page < $totalPages) {
+                    $paginationRow[] = "Keyingi ➡️";
+                }
+                if (!empty($paginationRow)) {
+                    $keyboard[] = $paginationRow;
+                }
+            }
+            
+            $keyboard = array_merge($keyboard, [
                 ['📅 Bugun', '📅 Kecha'],
                 ['📅 Bu hafta', '📅 O\'tgan hafta'],
                 ['📅 Bu oy', '📅 O\'tgan oy'],
                 ['📅 Oy tanlash', '📅 Yil tanlash'],
                 ['📅 Kun tanlash'],
                 ['🔙 Orqaga']
-            ], 'Filter Menu');
+            ]);
+            $keyboard = $this->validateTelegramKeyboard($keyboard, 'Filter Menu');
         }
 
         Telegram::sendMessage([
@@ -392,8 +441,12 @@ class FinanceController extends Controller
         ]);
     }
 
-    public function showExpenseView($userChatId, $period = 'today', $value = null)
+    public function showExpenseView($userChatId, $period = 'today', $value = null, $page = 1)
     {
+        // Cache pagination parameters
+        \Illuminate\Support\Facades\Cache::put("pagination_page_{$userChatId}", $page, 300);
+        \Illuminate\Support\Facades\Cache::put("pagination_period_{$userChatId}", $period, 300);
+        \Illuminate\Support\Facades\Cache::put("pagination_value_{$userChatId}", $value, 300);
         $user = User::where('chat_id', $userChatId)->first();
         if (!$user) return;
 
@@ -423,6 +476,63 @@ class FinanceController extends Controller
                 $query->whereMonth('created_at', Carbon::now()->month)
                       ->whereYear('created_at', Carbon::now()->year);
                 $periodText = "bu oydagi";
+                break;
+            case 'last_month':
+                $lastMonth = Carbon::now()->subMonth();
+                $query->whereMonth('created_at', $lastMonth->month)
+                      ->whereYear('created_at', $lastMonth->year);
+                $periodText = "o'tgan oydagi";
+                break;
+            case 'month_year':
+                Log::info("DEBUG EXPENSE: period={$period}, value={$value}");
+                if ($value && strpos($value, '.') !== false) {
+                    $parts = explode('.', $value);
+                    Log::info("DEBUG EXPENSE: parts=" . json_encode($parts));
+                    if (count($parts) === 2) {
+                        $month = (int)$parts[0];
+                        $year = (int)$parts[1];
+                        Log::info("DEBUG EXPENSE: month={$month}, year={$year}");
+                        $query->whereMonth('created_at', $month)
+                              ->whereYear('created_at', $year);
+                        $monthNames = [
+                            1 => 'Yanvar', 2 => 'Fevral', 3 => 'Mart', 4 => 'Aprel',
+                            5 => 'May', 6 => 'Iyun', 7 => 'Iyul', 8 => 'Avgust',
+                            9 => 'Sentyabr', 10 => 'Oktyabr', 11 => 'Noyabr', 12 => 'Dekabr'
+                        ];
+                        $periodText = $monthNames[$month] . " {$year}";
+                    } else {
+                        Log::info("DEBUG EXPENSE: Invalid parts count, using today");
+                        $query->whereDate('created_at', Carbon::today());
+                        $periodText = "bugungi";
+                    }
+                } else {
+                    Log::info("DEBUG EXPENSE: No value or no dot, using today");
+                    $query->whereDate('created_at', Carbon::today());
+                    $periodText = "bugungi";
+                }
+                break;
+            case 'month_year':
+                if ($value && strpos($value, '.') !== false) {
+                    $parts = explode('.', $value);
+                    if (count($parts) === 2) {
+                        $month = (int)$parts[0];
+                        $year = (int)$parts[1];
+                        $query->whereMonth('created_at', $month)
+                              ->whereYear('created_at', $year);
+                        $monthNames = [
+                            1 => 'Yanvar', 2 => 'Fevral', 3 => 'Mart', 4 => 'Aprel',
+                            5 => 'May', 6 => 'Iyun', 7 => 'Iyul', 8 => 'Avgust',
+                            9 => 'Sentyabr', 10 => 'Oktyabr', 11 => 'Noyabr', 12 => 'Dekabr'
+                        ];
+                        $periodText = $monthNames[$month] . " {$year}";
+                    } else {
+                        $query->whereDate('created_at', Carbon::today());
+                        $periodText = "bugungi";
+                    }
+                } else {
+                    $query->whereDate('created_at', Carbon::today());
+                    $periodText = "bugungi";
+                }
                 break;
             case 'month':
                 if ($value) {
@@ -467,28 +577,38 @@ class FinanceController extends Controller
             default:
                 $query->whereDate('created_at', Carbon::today());
                 $periodText = "bugungi";
-                break;
         }
 
         $transactions = $query->orderBy('created_at', 'desc')->get();
         $total = $transactions->sum('amount');
 
-        $text = "💸 Chiqimlar - {$periodText}\n\n";
-        
-        if ($transactions->count() > 0) {
+        // Pagination
+        $perPage = 10;
+        $totalTransactions = $transactions->count();
+        $totalPages = ceil($totalTransactions / $perPage);
+        $offset = ($page - 1) * $perPage;
+        $paginatedTransactions = $transactions->slice($offset, $perPage);
+
+        $text = "💸 Chiqimlar - {$periodText}\n";
+        if ($totalPages > 1) {
+            $text .= "📄 Sahifa {$page}/{$totalPages}\n";
+        }
+        $text .= "\n";
+
+        if ($paginatedTransactions->count() > 0) {
             // Bugungi va kechagi uchun sana sarlavhasi qo'shish
             $showDateHeader = in_array($period, ['today', 'yesterday']);
-            
+
             if ($showDateHeader) {
                 $headerDate = $period === 'today' ? Carbon::today() : Carbon::yesterday();
                 $text .= "📅 " . $headerDate->format('d.m.Y') . "\n\n";
             }
-            
-            foreach ($transactions as $transaction) {
+
+            foreach ($paginatedTransactions as $transaction) {
                 $transactionDate = Carbon::parse($transaction->created_at);
                 $category = $transaction->category ? $transaction->category->name : 'Kategoriyasiz';
                 $description = $transaction->description ? " - {$transaction->description}" : "";
-                
+
                 if ($showDateHeader) {
                     // Bugungi/kechagi uchun faqat soat:daqiqa
                     $time = $transactionDate->format('H:i');
@@ -498,7 +618,7 @@ class FinanceController extends Controller
                     $dateTime = $transactionDate->format('d.m.Y H:i');
                     $text .= "📅 {$dateTime}\n";
                 }
-                
+
                 $text .= "📂 {$category}\n";
                 $text .= "💰 " . number_format($transaction->amount, 0, '.', ' ') . " so'm\n";
                 if ($description) {
@@ -506,7 +626,7 @@ class FinanceController extends Controller
                 }
                 $text .= "\n";
             }
-            
+
             $text .= "💸 Jami: " . number_format($total, 0, '.', ' ') . " so'm";
         } else {
             $text .= "📭 {$periodText} chiqimlar yo'q";
@@ -515,21 +635,55 @@ class FinanceController extends Controller
         // Filtr tugmalari - sana tanlanganda sodda ko'rinish
         if ($period === 'date' && $value) {
             // Sana tanlanganda faqat asosiy tugmalar
-            $keyboard = $this->validateTelegramKeyboard([
+            $keyboard = [];
+            
+            // Pagination tugmalari
+            if ($totalPages > 1) {
+                $paginationRow = [];
+                if ($page > 1) {
+                    $paginationRow[] = "⬅️ Oldingi";
+                }
+                if ($page < $totalPages) {
+                    $paginationRow[] = "Keyingi ➡️";
+                }
+                if (!empty($paginationRow)) {
+                    $keyboard[] = $paginationRow;
+                }
+            }
+            
+            $keyboard = array_merge($keyboard, [
                 ['📅 Bugun', '📅 Kecha'],
                 ['📅 Bu oy'],
                 ['🔙 Orqaga']
-            ], 'Date Filter Menu');
+            ]);
+            $keyboard = $this->validateTelegramKeyboard($keyboard, 'Date Filter Menu');
         } else {
             // Boshqa holatlar uchun to'liq filtr
-            $keyboard = $this->validateTelegramKeyboard([
+            $keyboard = [];
+            
+            // Pagination tugmalari
+            if ($totalPages > 1) {
+                $paginationRow = [];
+                if ($page > 1) {
+                    $paginationRow[] = "⬅️ Oldingi";
+                }
+                if ($page < $totalPages) {
+                    $paginationRow[] = "Keyingi ➡️";
+                }
+                if (!empty($paginationRow)) {
+                    $keyboard[] = $paginationRow;
+                }
+            }
+            
+            $keyboard = array_merge($keyboard, [
                 ['📅 Bugun', '📅 Kecha'],
                 ['📅 Bu hafta', '📅 O\'tgan hafta'],
                 ['📅 Bu oy', '📅 O\'tgan oy'],
                 ['📅 Oy tanlash', '📅 Yil tanlash'],
                 ['📅 Kun tanlash'],
                 ['🔙 Orqaga']
-            ], 'Expense Filter Menu');
+            ]);
+            $keyboard = $this->validateTelegramKeyboard($keyboard, 'Expense Filter Menu');
         }
 
         Telegram::sendMessage([
@@ -547,7 +701,7 @@ class FinanceController extends Controller
     {
         $user = User::firstOrCreate(['chat_id' => $userChatId]);
         $category = Category::find($categoryId);
-        
+
         if (!$category) {
             Telegram::sendMessage([
                 'chat_id' => $userChatId,
@@ -574,7 +728,7 @@ class FinanceController extends Controller
     public function processAmountInput($userChatId, $amount)
     {
         $transactionData = Cache::get("transaction_process_{$userChatId}");
-        
+
         if (!$transactionData || $transactionData['step'] !== 'amount') {
             Telegram::sendMessage([
                 'chat_id' => $userChatId,
@@ -595,7 +749,7 @@ class FinanceController extends Controller
         // Summani yangilash va keyingi bosqichga o'tish
         $transactionData['amount'] = $amount;
         $transactionData['step'] = 'description';
-        
+
         Cache::put("transaction_process_{$userChatId}", $transactionData, 600);
 
         $category = Category::find($transactionData['category_id']);
@@ -620,7 +774,7 @@ class FinanceController extends Controller
     public function processDescriptionInput($userChatId, $description = null)
     {
         $transactionData = Cache::get("transaction_process_{$userChatId}");
-        
+
         if (!$transactionData || $transactionData['step'] !== 'description') {
             Telegram::sendMessage([
                 'chat_id' => $userChatId,
@@ -631,7 +785,7 @@ class FinanceController extends Controller
 
         // Sana va vaqtni belgilash
         $selectedDate = $transactionData['selected_date'] ?? 'Bugun';
-        
+
         if ($selectedDate === 'Bugun') {
             // Bugungi sana uchun joriy vaqt
             $transactionDate = now();
@@ -647,7 +801,7 @@ class FinanceController extends Controller
                 $transactionDate = now();
             }
         }
-        
+
         // Tranzaksiyani yaratish
         $transaction = Transaction::create([
             'user_id' => $transactionData['user_id'],
@@ -750,10 +904,10 @@ class FinanceController extends Controller
     {
         $currentMonth = (int)date('m');
         $currentYear = (int)date('Y');
-        
+
         $months = [
             '01' => 'Yanvar',
-            '02' => 'Fevral', 
+            '02' => 'Fevral',
             '03' => 'Mart',
             '04' => 'Aprel',
             '05' => 'May',
@@ -767,24 +921,24 @@ class FinanceController extends Controller
         ];
 
         $keyboard = [];
-        
+
         // O'tgan oydan boshlab orqaga qarab 12 oy ko'rsatish (joriy oy chiqarildi)
         for ($i = 1; $i <= 12; $i++) {
             $monthNum = $currentMonth - $i;
             $year = $currentYear;
-            
+
             // Agar oy 0 yoki manfiy bo'lsa, o'tgan yilga o'tish
             if ($monthNum <= 0) {
                 $monthNum += 12;
                 $year--;
             }
-            
+
             $monthKey = sprintf('%02d', $monthNum);
             $monthName = $months[$monthKey];
-            
+
             $keyboard[] = ["{$monthName} ({$year})"];
         }
-        
+
         $keyboard[] = ['🔙 Orqaga'];
         $keyboard = $this->validateTelegramKeyboard($keyboard, 'Year Selection');
 
@@ -806,7 +960,7 @@ class FinanceController extends Controller
     {
         $currentYear = date('Y');
         $years = [];
-        
+
         // Joriy yildan 5 yil oldingi yillargacha
         for ($year = $currentYear; $year >= $currentYear - 5; $year--) {
             $years[] = $year;
@@ -816,7 +970,7 @@ class FinanceController extends Controller
         foreach ($years as $year) {
             $keyboard[] = [$year];
         }
-        
+
         $keyboard[] = ['🔙 Orqaga'];
 
         // Validate keyboard before sending
@@ -863,7 +1017,7 @@ class FinanceController extends Controller
     {
         $currentDate = date('d.m.Y');
         $dates = [];
-        
+
         // 2 kun avvaldan boshlab 30 kunlik sanalar
         for ($i = 2; $i <= 31; $i++) {
             $date = date('d.m.Y', strtotime("-{$i} days"));
@@ -879,7 +1033,7 @@ class FinanceController extends Controller
                 $row = [];
             }
         }
-        
+
         $keyboard[] = ['🔙 Orqaga'];
 
         $emoji = $type === 'income' ? '💵' : '💸';
@@ -900,7 +1054,7 @@ class FinanceController extends Controller
     {
         $emoji = $type === 'income' ? '💰' : '💸';
         $typeText = $type === 'income' ? 'kirim' : 'chiqim';
-        
+
         // Kechadan 1 oy avvalgi sanalar (kechani hisobga olmasdan)
         $dates = [];
         for ($i = 2; $i <= 30; $i++) { // 2 dan boshlaymiz, chunki kecha alohida tugma sifatida bor
@@ -910,7 +1064,7 @@ class FinanceController extends Controller
 
         $keyboard = [];
         $keyboard[] = ['📅 Bugun', '📅 Kecha']; // Bugun va Kecha tugmalari
-        
+
         // Sanalarni 2 tadan qilib qo'yish
         $row = [];
         foreach ($dates as $index => $date) {
@@ -920,7 +1074,7 @@ class FinanceController extends Controller
                 $row = [];
             }
         }
-        
+
         $keyboard[] = ['🔙 Orqaga'];
 
         Telegram::sendMessage([
@@ -937,7 +1091,7 @@ class FinanceController extends Controller
     public function processDateInput($userChatId, $selectedDate)
     {
         $transactionData = Cache::get("transaction_process_{$userChatId}");
-        
+
         if (!$transactionData || $transactionData['step'] !== 'date') {
             Telegram::sendMessage([
                 'chat_id' => $userChatId,
@@ -961,7 +1115,7 @@ class FinanceController extends Controller
         // Sanani yangilash va keyingi bosqichga o'tish
         $transactionData['selected_date'] = $formattedDate;
         $transactionData['step'] = 'amount';
-        
+
         Cache::put("transaction_process_{$userChatId}", $transactionData, 600);
 
         $category = Category::find($transactionData['category_id']);
