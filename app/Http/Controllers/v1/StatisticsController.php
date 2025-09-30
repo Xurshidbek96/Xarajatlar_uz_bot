@@ -8,79 +8,12 @@ use App\Models\Category;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
+use App\Helpers\TelegramKeyboardHelper;
 use Illuminate\Support\Facades\Log;
 use Telegram\Bot\Laravel\Facades\Telegram;
 
 class StatisticsController extends Controller
 {
-    // Universal keyboard validation function to prevent Telegram parsing errors
-    private function validateTelegramKeyboard($keyboard, $context = "Unknown") {
-        if (!is_array($keyboard)) {
-            Log::error("Telegram keyboard error: Keyboard is not an array in context: $context");
-            return [];
-        }
-        
-        $fixedKeyboard = [];
-        $hasErrors = false;
-        
-        foreach ($keyboard as $rowIndex => $row) {
-            if (!is_array($row)) {
-                Log::error("Telegram keyboard error: Row $rowIndex is not an array in context: $context");
-                $hasErrors = true;
-                continue;
-            }
-            
-            if (empty($row)) {
-                continue; // Skip empty rows
-            }
-            
-            $fixedRow = [];
-            foreach ($row as $buttonIndex => $button) {
-                if ($button === null) {
-                    Log::error("Telegram keyboard error: Button at row $rowIndex, position $buttonIndex is null in context: $context");
-                    $hasErrors = true;
-                    continue;
-                }
-                
-                if (!is_string($button)) {
-                    // Handle different types more carefully
-                    if (is_array($button)) {
-                        Log::error("Telegram keyboard error: Button at row $rowIndex, position $buttonIndex is an array in context: $context");
-                        $hasErrors = true;
-                        continue; // Skip arrays completely
-                    } elseif (is_object($button)) {
-                        Log::error("Telegram keyboard error: Button at row $rowIndex, position $buttonIndex is an object in context: $context");
-                        $hasErrors = true;
-                        continue; // Skip objects completely
-                    } else {
-                        Log::warning("Telegram keyboard warning: Button at row $rowIndex, position $buttonIndex is not a string in context: $context, converting");
-                        $button = (string)$button;
-                        $hasErrors = true;
-                    }
-                }
-                
-                $button = trim($button);
-                if (empty($button)) {
-                    Log::error("Telegram keyboard error: Button at row $rowIndex, position $buttonIndex is empty in context: $context");
-                    $hasErrors = true;
-                    continue;
-                }
-                
-                $fixedRow[] = $button;
-            }
-            
-            if (!empty($fixedRow)) {
-                $fixedKeyboard[] = $fixedRow;
-            }
-        }
-        
-        if ($hasErrors) {
-            Log::warning("Telegram keyboard warning: Keyboard had errors and was fixed in context: $context");
-        }
-        
-        return $fixedKeyboard;
-    }
-
     /**
      * Statistika bo'limini ko'rsatish (default: oylik hisobot)
      */
@@ -95,7 +28,7 @@ class StatisticsController extends Controller
         $keyboard = $this->getFilterKeyboard();
         
         // Keyboard validation qo'shish
-        $keyboard = $this->validateTelegramKeyboard($keyboard, 'Statistics Filter');
+        $keyboard = TelegramKeyboardHelper::validateTelegramKeyboard($keyboard, 'Statistics Filter');
         
         Log::info('Sending statistics keyboard: ' . json_encode($keyboard));
         

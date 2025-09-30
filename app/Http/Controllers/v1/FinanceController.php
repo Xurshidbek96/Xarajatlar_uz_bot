@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Helpers\TelegramKeyboardHelper;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -13,80 +14,14 @@ use Telegram\Bot\Laravel\Facades\Telegram;
 
 class FinanceController extends Controller
 {
-    // Universal keyboard validation function to prevent Telegram parsing errors
-    private function validateTelegramKeyboard($keyboard, $context = "Unknown") {
-        if (!is_array($keyboard)) {
-            Log::error("Telegram keyboard error: Keyboard is not an array in context: $context");
-            return [];
-        }
 
-        $fixedKeyboard = [];
-        $hasErrors = false;
-
-        foreach ($keyboard as $rowIndex => $row) {
-            if (!is_array($row)) {
-                Log::error("Telegram keyboard error: Row $rowIndex is not an array in context: $context");
-                $hasErrors = true;
-                continue;
-            }
-
-            if (empty($row)) {
-                continue; // Skip empty rows
-            }
-
-            $fixedRow = [];
-            foreach ($row as $buttonIndex => $button) {
-                if ($button === null) {
-                    Log::error("Telegram keyboard error: Button at row $rowIndex, position $buttonIndex is null in context: $context");
-                    $hasErrors = true;
-                    continue;
-                }
-
-                if (!is_string($button)) {
-                    // Handle different types more carefully
-                    if (is_array($button)) {
-                        Log::error("Telegram keyboard error: Button at row $rowIndex, position $buttonIndex is an array in context: $context");
-                        $hasErrors = true;
-                        continue; // Skip arrays completely
-                    } elseif (is_object($button)) {
-                        Log::error("Telegram keyboard error: Button at row $rowIndex, position $buttonIndex is an object in context: $context");
-                        $hasErrors = true;
-                        continue; // Skip objects completely
-                    } else {
-                        Log::warning("Telegram keyboard warning: Button at row $rowIndex, position $buttonIndex is not a string in context: $context, converting");
-                        $button = (string)$button;
-                        $hasErrors = true;
-                    }
-                }
-
-                $button = trim($button);
-                if (empty($button)) {
-                    Log::error("Telegram keyboard error: Button at row $rowIndex, position $buttonIndex is empty in context: $context");
-                    $hasErrors = true;
-                    continue;
-                }
-
-                $fixedRow[] = $button;
-            }
-
-            if (!empty($fixedRow)) {
-                $fixedKeyboard[] = $fixedRow;
-            }
-        }
-
-        if ($hasErrors) {
-            Log::warning("Telegram keyboard warning: Keyboard had errors and was fixed in context: $context");
-        }
-
-        return $fixedKeyboard;
-    }
 
     public function showMainMenu($userChatId)
     {
         // Standart kategoriyalarni yaratish
         $this->createDefaultCategories();
 
-        $keyboard = $this->validateTelegramKeyboard([
+        $keyboard = TelegramKeyboardHelper::validateTelegramKeyboard([
             ['💵 Kirim', '💸 Chiqim'],
             ['📊 Statistika', '📋 Barcha amaliyotlar']
         ], 'Main Menu');
@@ -106,7 +41,7 @@ class FinanceController extends Controller
 
     public function showIncomeMenu($userChatId)
     {
-        $keyboard = $this->validateTelegramKeyboard([
+        $keyboard = TelegramKeyboardHelper::validateTelegramKeyboard([
             ['➕ Qo\'shish', '👁 Ko\'rish'],
             ['🔙 Orqaga']
         ], 'Income Menu');
@@ -124,7 +59,7 @@ class FinanceController extends Controller
 
     public function showExpenseMenu($userChatId)
     {
-        $keyboard = $this->validateTelegramKeyboard([
+        $keyboard = TelegramKeyboardHelper::validateTelegramKeyboard([
             ['➕ Qo\'shish', '👁 Ko\'rish'],
             ['🔙 Orqaga']
         ], 'Expense Menu');
@@ -150,7 +85,7 @@ class FinanceController extends Controller
         }
 
         $keyboard[] = ['🔙 Orqaga'];
-        $keyboard = $this->validateTelegramKeyboard($keyboard, 'Income Categories');
+        $keyboard = TelegramKeyboardHelper::validateTelegramKeyboard($keyboard, 'Income Categories');
 
         Telegram::sendMessage([
             'chat_id' => $userChatId,
@@ -226,34 +161,6 @@ class FinanceController extends Controller
                 $query->whereMonth('created_at', $lastMonth->month)
                       ->whereYear('created_at', $lastMonth->year);
                 $periodText = "o'tgan oydagi";
-                break;
-            case 'month_year':
-                Log::info("DEBUG EXPENSE: period={$period}, value={$value}");
-                if ($value && strpos($value, '.') !== false) {
-                    $parts = explode('.', $value);
-                    Log::info("DEBUG EXPENSE: parts=" . json_encode($parts));
-                    if (count($parts) === 2) {
-                        $month = (int)$parts[0];
-                        $year = (int)$parts[1];
-                        Log::info("DEBUG EXPENSE: month={$month}, year={$year}");
-                        $query->whereMonth('created_at', $month)
-                              ->whereYear('created_at', $year);
-                        $monthNames = [
-                            1 => 'Yanvar', 2 => 'Fevral', 3 => 'Mart', 4 => 'Aprel',
-                            5 => 'May', 6 => 'Iyun', 7 => 'Iyul', 8 => 'Avgust',
-                            9 => 'Sentyabr', 10 => 'Oktyabr', 11 => 'Noyabr', 12 => 'Dekabr'
-                        ];
-                        $periodText = $monthNames[$month] . " {$year}";
-                    } else {
-                        Log::info("DEBUG EXPENSE: Invalid parts count, using today");
-                        $query->whereDate('created_at', Carbon::today());
-                        $periodText = "bugungi";
-                    }
-                } else {
-                    Log::info("DEBUG EXPENSE: No value or no dot, using today");
-                    $query->whereDate('created_at', Carbon::today());
-                    $periodText = "bugungi";
-                }
                 break;
             case 'month_year':
                 if ($value && strpos($value, '.') !== false) {
@@ -400,7 +307,7 @@ class FinanceController extends Controller
                 ['📅 Bu oy'],
                 ['🔙 Orqaga']
             ]);
-            $keyboard = $this->validateTelegramKeyboard($keyboard, 'Date Filter Menu');
+            $keyboard = TelegramKeyboardHelper::validateTelegramKeyboard($keyboard, 'Date Filter Menu');
         } else {
             // Boshqa holatlar uchun to'liq filtr
             $keyboard = [];
@@ -427,7 +334,7 @@ class FinanceController extends Controller
                 ['📅 Kun tanlash'],
                 ['🔙 Orqaga']
             ]);
-            $keyboard = $this->validateTelegramKeyboard($keyboard, 'Filter Menu');
+            $keyboard = TelegramKeyboardHelper::validateTelegramKeyboard($keyboard, 'Filter Menu');
         }
 
         Telegram::sendMessage([
@@ -656,7 +563,7 @@ class FinanceController extends Controller
                 ['📅 Bu oy'],
                 ['🔙 Orqaga']
             ]);
-            $keyboard = $this->validateTelegramKeyboard($keyboard, 'Date Filter Menu');
+            $keyboard = TelegramKeyboardHelper::validateTelegramKeyboard($keyboard, 'Date Filter Menu');
         } else {
             // Boshqa holatlar uchun to'liq filtr
             $keyboard = [];
@@ -683,7 +590,7 @@ class FinanceController extends Controller
                 ['📅 Kun tanlash'],
                 ['🔙 Orqaga']
             ]);
-            $keyboard = $this->validateTelegramKeyboard($keyboard, 'Expense Filter Menu');
+            $keyboard = TelegramKeyboardHelper::validateTelegramKeyboard($keyboard, 'Expense Filter Menu');
         }
 
         Telegram::sendMessage([
@@ -940,7 +847,7 @@ class FinanceController extends Controller
         }
 
         $keyboard[] = ['🔙 Orqaga'];
-        $keyboard = $this->validateTelegramKeyboard($keyboard, 'Year Selection');
+        $keyboard = TelegramKeyboardHelper::validateTelegramKeyboard($keyboard, 'Year Selection');
 
         $emoji = $type === 'income' ? '💵' : '💸';
         $typeText = $type === 'income' ? 'kirimlar' : 'chiqimlar';
@@ -974,7 +881,7 @@ class FinanceController extends Controller
         $keyboard[] = ['🔙 Orqaga'];
 
         // Validate keyboard before sending
-        $keyboard = $this->validateTelegramKeyboard($keyboard, 'Year Selection');
+        $keyboard = TelegramKeyboardHelper::validateTelegramKeyboard($keyboard, 'Year Selection');
 
         $emoji = $type === 'income' ? '💵' : '💸';
         $typeText = $type === 'income' ? 'kirimlar' : 'chiqimlar';
@@ -992,7 +899,7 @@ class FinanceController extends Controller
 
     public function showDaySelection($userChatId, $type = 'income')
     {
-        $keyboard = $this->validateTelegramKeyboard([
+        $keyboard = TelegramKeyboardHelper::validateTelegramKeyboard([
             ['📅 Bugun', '📅 Kecha'],
             ['📅 3 kun oldin', '📅 1 hafta oldin'],
             ['📅 Aniq sana tanlash'],
@@ -1129,5 +1036,66 @@ class FinanceController extends Controller
                 'remove_keyboard' => true
             ])
         ]);
+    }
+    // Date filtering helper method to reduce repetition
+    private function getDateRange($period, $monthYear = null, $month = null, $year = null, $date = null)
+    {
+        $startDate = null;
+        $endDate = null;
+
+        switch ($period) {
+            case 'today':
+                $startDate = Carbon::today();
+                $endDate = Carbon::today()->endOfDay();
+                break;
+            case 'yesterday':
+                $startDate = Carbon::yesterday();
+                $endDate = Carbon::yesterday()->endOfDay();
+                break;
+            case 'this_week':
+                $startDate = Carbon::now()->startOfWeek();
+                $endDate = Carbon::now()->endOfWeek();
+                break;
+            case 'last_week':
+                $startDate = Carbon::now()->subWeek()->startOfWeek();
+                $endDate = Carbon::now()->subWeek()->endOfWeek();
+                break;
+            case 'this_month':
+                $startDate = Carbon::now()->startOfMonth();
+                $endDate = Carbon::now()->endOfMonth();
+                break;
+            case 'last_month':
+                $startDate = Carbon::now()->subMonth()->startOfMonth();
+                $endDate = Carbon::now()->subMonth()->endOfMonth();
+                break;
+            case 'month_year':
+                if ($monthYear) {
+                    [$month, $year] = explode('-', $monthYear);
+                    $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+                    $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
+                }
+                break;
+            case 'month':
+                if ($month) {
+                    $currentYear = Carbon::now()->year;
+                    $startDate = Carbon::createFromDate($currentYear, $month, 1)->startOfMonth();
+                    $endDate = Carbon::createFromDate($currentYear, $month, 1)->endOfMonth();
+                }
+                break;
+            case 'year':
+                if ($year) {
+                    $startDate = Carbon::createFromDate($year, 1, 1)->startOfYear();
+                    $endDate = Carbon::createFromDate($year, 12, 31)->endOfYear();
+                }
+                break;
+            case 'date':
+                if ($date) {
+                    $startDate = Carbon::parse($date)->startOfDay();
+                    $endDate = Carbon::parse($date)->endOfDay();
+                }
+                break;
+        }
+
+        return [$startDate, $endDate];
     }
 }

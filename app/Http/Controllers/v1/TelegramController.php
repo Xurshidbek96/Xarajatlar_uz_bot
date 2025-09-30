@@ -6,16 +6,21 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\ChannelSubscriptionService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Telegram\Bot\Laravel\Facades\Telegram;
 
 class TelegramController extends Controller
 {
     private $channelService;
+    private $financeController;
+    private $statisticsController;
 
     public function __construct(ChannelSubscriptionService $channelService)
     {
         $this->channelService = $channelService;
+        $this->financeController = new \App\Http\Controllers\v1\FinanceController();
+        $this->statisticsController = new \App\Http\Controllers\v1\StatisticsController();
     }
 
     public function webhook(Request $request)
@@ -737,4 +742,310 @@ class TelegramController extends Controller
         }
     }
 
+    private function handleDateCommand($userChatId, $text, $dateType)
+    {
+        // Tranzaksiya jarayonini tekshirish
+        $transactionData = Cache::get("transaction_process_{$userChatId}");
+        if ($transactionData && $transactionData['step'] === 'date') {
+            // Tranzaksiya jarayonida - sana tanlash
+            $this->financeController->processDateInput($userChatId, $text);
+            return;
+        }
+
+        // Statistika kontekstini tekshirish
+        $statisticsContext = Cache::get("statistics_context_{$userChatId}");
+        if ($statisticsContext) {
+            // Statistika filtri
+            $this->statisticsController->showStatisticsByFilter($userChatId, $text);
+            return;
+        }
+
+        // Oddiy ko'rish rejimi
+        $context = Cache::get("user_context_{$userChatId}", 'income');
+        if ($context === 'expense') {
+            $this->financeController->showExpenseView($userChatId, $dateType);
+        } else {
+            $this->financeController->showIncomeView($userChatId, $dateType);
+        }
+    }
+
+    private function handleSpecificDateCommand($userChatId, $text, $dateValue)
+    {
+        // Tranzaksiya jarayonini tekshirish
+        $transactionData = Cache::get("transaction_process_{$userChatId}");
+        if ($transactionData && $transactionData['step'] === 'date') {
+            // Tranzaksiya jarayonida - sana tanlash
+            $this->financeController->processDateInput($userChatId, $dateValue);
+            return;
+        }
+
+        // Oddiy ko'rish rejimi
+        $context = Cache::get("user_context_{$userChatId}", 'income');
+        if ($context === 'expense') {
+            $this->financeController->showExpenseView($userChatId, 'date', $dateValue);
+        } else {
+            $this->financeController->showIncomeView($userChatId, 'date', $dateValue);
+        }
+    }
+
+    private function clearUserContexts($userChatId)
+    {
+        Cache::forget("statistics_context_{$userChatId}");
+        Cache::forget("user_context_{$userChatId}");
+    }
+
+    public function handleWebhook(Request $request)
+    {
+        try {
+            $update = Telegram::commandsHandler(true);
+            
+            if (isset($update['message'])) {
+                $message = $update['message'];
+                $userChatId = $message['chat']['id'];
+                $text = $message['text'] ?? '';
+
+                // Foydalanuvchini ro'yxatdan o'tkazish
+                $user = User::firstOrCreate(
+                    ['chat_id' => $userChatId],
+                    [
+                        'name' => $message['from']['first_name'] ?? 'User',
+                        'username' => $message['from']['username'] ?? null,
+                    ]
+                );
+
+                // Asosiy komandalar
+                if ($text === '/start') {
+                    $this->financeController->showMainMenu($userChatId);
+                    return response()->json(['status' => 'ok']);
+                }
+
+                // Kategoriya tanlash jarayoni
+                if (preg_match('/^(income|expense)_category_(\d+)$/', $text, $matches)) {
+                    $type = $matches[1];
+                    $categoryId = $matches[2];
+                    $this->financeController->startAddTransaction($userChatId, $type, $categoryId);
+                    return response()->json(['status' => 'ok']);
+                }
+
+                // Miqdor kiritish jarayoni
+                if (is_numeric($text)) {
+                    $transactionData = Cache::get("transaction_process_{$userChatId}");
+                    if ($transactionData && $transactionData['step'] === 'amount') {
+                        $this->financeController->processAmountInput($userChatId, $text);
+                        return response()->json(['status' => 'ok']);
+                    }
+                }
+
+                // Asosiy menyu tugmalari
+                switch ($text) {
+                    case '💰 Kirim':
+                    case 'Kirim':
+                        $this->financeController->showIncomeMenu($userChatId);
+                        Cache::put("user_context_{$userChatId}", 'income', 300);
+                        break;
+
+                    case '💸 Chiqim':
+                    case 'Chiqim':
+                        $this->financeController->showExpenseMenu($userChatId);
+                        Cache::put("user_context_{$userChatId}", 'expense', 300);
+                        break;
+
+                    case '📊 Statistika':
+                    case 'Statistika':
+                        Cache::put("user_context_{$userChatId}", 'statistics', 300);
+                        $this->statisticsController->showStatistics($userChatId);
+                        break;
+
+                    case '📋 Barcha amaliyotlar':
+                    case 'Barcha amaliyotlar':
+                        Telegram::sendMessage([
+                            'chat_id' => $userChatId,
+                            'text' => "📋 Barcha amaliyotlar funksiyasi hozircha ishlab chiqilmoqda...",
+                        ]);
+                        break;
+
+                    case '➕ Qo\'shish':
+                        $context = Cache::get("user_context_{$userChatId}", 'income');
+                        if ($context === 'expense') {
+                            $this->financeController->showExpenseCategories($userChatId);
+                        } else {
+                            $this->financeController->showIncomeCategories($userChatId);
+                        }
+                        break;
+
+                    case '👁 Ko\'rish':
+                        $context = Cache::get("user_context_{$userChatId}", 'income');
+                        if ($context === 'expense') {
+                            $this->financeController->showExpenseView($userChatId, 'today');
+                        } else {
+                            $this->financeController->showIncomeView($userChatId, 'today');
+                        }
+                        break;
+
+                    case '🔙 Orqaga':
+                        $this->clearUserContexts($userChatId);
+                        $this->financeController->showMainMenu($userChatId);
+                        break;
+
+                    // Sana tugmalari - optimizatsiya qilingan
+                    case '📅 Bugun':
+                        $this->handleDateCommand($userChatId, $text, 'today');
+                        break;
+
+                    case '📅 Kecha':
+                        $this->handleDateCommand($userChatId, $text, 'yesterday');
+                        break;
+
+                    case '📅 Bu hafta':
+                        $this->handleDateCommand($userChatId, $text, 'this_week');
+                        break;
+
+                    case '📅 O\'tgan hafta':
+                        $this->handleDateCommand($userChatId, $text, 'last_week');
+                        break;
+
+                    case '📅 Bu oy':
+                        $this->handleDateCommand($userChatId, $text, 'this_month');
+                        break;
+
+                    case '📅 O\'tgan oy':
+                        $this->handleDateCommand($userChatId, $text, 'last_month');
+                        break;
+
+                    case '📅 3 kun oldin':
+                        $this->handleSpecificDateCommand($userChatId, $text, date('d.m.Y', strtotime('-3 days')));
+                        break;
+
+                    case '📅 1 hafta oldin':
+                        $this->handleSpecificDateCommand($userChatId, $text, date('d.m.Y', strtotime('-1 week')));
+                        break;
+
+                    default:
+                        // Aniq sana formatini tekshirish
+                        if (preg_match('/^\d{2}\.\d{2}\.\d{4}$/', $text)) {
+                            $date = $text;
+                            
+                            // Tranzaksiya jarayonini tekshirish
+                            $transactionData = Cache::get("transaction_process_{$userChatId}");
+                            if ($transactionData && $transactionData['step'] === 'date') {
+                                $this->financeController->processDateInput($userChatId, $date);
+                            } else {
+                                // Statistika yoki oddiy ko'rish rejimi
+                                $statisticsContext = Cache::get("statistics_context_{$userChatId}");
+                                $context = Cache::get("user_context_{$userChatId}", 'income');
+                                
+                                if ($context === 'statistics' || $statisticsContext) {
+                                    $this->statisticsController->showDateStatistics($userChatId, $date);
+                                } else {
+                                    if ($context === 'expense') {
+                                        $this->financeController->showExpenseView($userChatId, 'date', $date);
+                                    } else {
+                                        $this->financeController->showIncomeView($userChatId, 'date', $date);
+                                    }
+                                }
+                            }
+                        }
+                        // Boshqa callback query'lar va inline keyboard tugmalari
+                        elseif (strpos($text, 'view_') === 0) {
+                            $parts = explode('_', $text);
+                            if (count($parts) >= 3) {
+                                $type = $parts[1]; // income yoki expense
+                                $period = $parts[2]; // today, yesterday, etc.
+                                $value = isset($parts[3]) ? $parts[3] : null;
+                                
+                                if ($type === 'income') {
+                                    $this->financeController->showIncomeView($userChatId, $period, $value);
+                                } elseif ($type === 'expense') {
+                                    $this->financeController->showExpenseView($userChatId, $period, $value);
+                                }
+                            }
+                        }
+                        // Sahifalash tugmalari
+                        elseif (preg_match('/^(income|expense)_page_(\d+)$/', $text, $matches)) {
+                            $type = $matches[1];
+                            $page = (int)$matches[2];
+                            
+                            $context = Cache::get("user_context_{$userChatId}", 'income');
+                            $currentPeriod = Cache::get("current_period_{$userChatId}", 'today');
+                            $currentValue = Cache::get("current_value_{$userChatId}");
+                            
+                            if ($type === 'income') {
+                                $this->financeController->showIncomeView($userChatId, $currentPeriod, $currentValue, $page);
+                            } else {
+                                $this->financeController->showExpenseView($userChatId, $currentPeriod, $currentValue, $page);
+                            }
+                        }
+                        // Oy tanlash tugmalari
+                        elseif (preg_match('/^month_(\d{2})$/', $text, $matches)) {
+                            $month = $matches[1];
+                            $statisticsContext = Cache::get("statistics_context_{$userChatId}");
+                            
+                            if ($statisticsContext) {
+                                $this->statisticsController->showStatisticsByFilter($userChatId, "month_{$month}");
+                            } else {
+                                $context = Cache::get("user_context_{$userChatId}", 'income');
+                                if ($context === 'expense') {
+                                    $this->financeController->showExpenseView($userChatId, 'month', $month);
+                                } else {
+                                    $this->financeController->showIncomeView($userChatId, 'month', $month);
+                                }
+                            }
+                        }
+                        // Yil tanlash tugmalari
+                        elseif (preg_match('/^year_(\d{4})$/', $text, $matches)) {
+                            $year = $matches[1];
+                            $statisticsContext = Cache::get("statistics_context_{$userChatId}");
+                            
+                            if ($statisticsContext) {
+                                $this->statisticsController->showStatisticsByFilter($userChatId, "year_{$year}");
+                            } else {
+                                $context = Cache::get("user_context_{$userChatId}", 'income');
+                                if ($context === 'expense') {
+                                    $this->financeController->showExpenseView($userChatId, 'year', $year);
+                                } else {
+                                    $this->financeController->showIncomeView($userChatId, 'year', $year);
+                                }
+                            }
+                        }
+                        // Oy.yil formatidagi tugmalar
+                        elseif (preg_match('/^(\d{2})\.(\d{4})$/', $text, $matches)) {
+                            $month = $matches[1];
+                            $year = $matches[2];
+                            $value = "{$month}.{$year}";
+                            
+                            $statisticsContext = Cache::get("statistics_context_{$userChatId}");
+                            if ($statisticsContext) {
+                                $this->statisticsController->showStatisticsByFilter($userChatId, "month_year_{$value}");
+                            } else {
+                                $context = Cache::get("user_context_{$userChatId}", 'income');
+                                if ($context === 'expense') {
+                                    $this->financeController->showExpenseView($userChatId, 'month_year', $value);
+                                } else {
+                                    $this->financeController->showIncomeView($userChatId, 'month_year', $value);
+                                }
+                            }
+                        }
+                        // Statistika tugmalari
+                        elseif (strpos($text, 'stats_') === 0) {
+                            $parts = explode('_', $text, 2);
+                            if (count($parts) === 2) {
+                                $filter = $parts[1];
+                                $this->statisticsController->showStatisticsByFilter($userChatId, $filter);
+                            }
+                        }
+                        // Sana tanlash tugmalari
+                        elseif (preg_match('/^date_(\d{2}\.\d{2}\.\d{4})$/', $text, $matches)) {
+                            $date = $matches[1];
+                            $this->statisticsController->showDateStatistics($userChatId, $date);
+                        }
+                        break;
+                }
+            }
+
+            return response()->json(['status' => 'ok']);
+        } catch (\Exception $e) {
+            Log::error('Telegram webhook error: ' . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
+    }
 }
