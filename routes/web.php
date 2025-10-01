@@ -7,7 +7,7 @@ Route::get('/', function () {
     return view('welcome');
 });
 Route::get('setwebhook', function () {
-  $response = Telegram::setWebhook(['url' => 'https://bd1719db8df2.ngrok-free.app/api/telegram/webhooks']);
+  $response = Telegram::setWebhook(['url' => 'https://7f5a79cf5435.ngrok-free.app/api/telegram/webhooks']);
   return response()->json($response);
 });
 

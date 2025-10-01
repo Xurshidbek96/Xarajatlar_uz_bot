@@ -31,6 +31,13 @@ class ChannelSubscriptionService
 
             Log::info("Member status: " . $member->status);
 
+            // Foydalanuvchi kanaldan chiqib ketgan yoki hech qachon a'zo bo'lmagan bo'lsa
+            if (in_array($member->status, ['left', 'kicked'])) {
+                Log::info("User has left or was kicked from channel");
+                return false;
+            }
+
+            // Faqat faol a'zolarni qabul qilish
             $isSubscribed = in_array($member->status, ['member', 'administrator', 'creator']);
             Log::info("Is subscribed: " . ($isSubscribed ? 'true' : 'false'));
             
@@ -48,10 +55,17 @@ class ChannelSubscriptionService
                 return true;
             }
             
+            // USER_NOT_PARTICIPANT xatosi - foydalanuvchi kanalda emas
+            if (strpos($e->getMessage(), 'USER_NOT_PARTICIPANT') !== false || 
+                strpos($e->getMessage(), 'user not found') !== false) {
+                Log::info('User is not a participant of the channel');
+                return false;
+            }
+            
             // PARTICIPANT_ID_INVALID xatosi - test user yoki mavjud bo'lmagan user
             if (strpos($e->getMessage(), 'PARTICIPANT_ID_INVALID') !== false) {
-                Log::info('Test user or invalid user ID, allowing access');
-                return true;
+                Log::info('Test user or invalid user ID, denying access for security');
+                return false;
             }
             
             if (strpos($e->getMessage(), 'member list is inaccessible') !== false) {
@@ -59,8 +73,9 @@ class ChannelSubscriptionService
                 return false;
             }
             
-            // Boshqa xatolarda ham obuna tekshirmasdan o'tkazamiz
-            return true;
+            // Boshqa xatolarda ham xavfsizlik uchun false qaytaramiz
+            Log::error('Unknown error occurred, denying access for security');
+            return false;
         }
     }
 
