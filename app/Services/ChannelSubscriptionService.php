@@ -51,8 +51,8 @@ class ChannelSubscriptionService
             // Agar "chat not found" xatosi bo'lsa, bu bot kanalga admin qilinmaganligini anglatadi
             if (strpos($e->getMessage(), 'chat not found') !== false) {
                 Log::error('Bot is not added as admin to the channel: ' . $channelId);
-                // Bu holatda obuna tekshirmasdan o'tkazamiz
-                return true;
+                // Bot admin emas, shuning uchun obuna tekshira olmaymiz - xavfsizlik uchun false qaytaramiz
+                return false;
             }
             
             // USER_NOT_PARTICIPANT xatosi - foydalanuvchi kanalda emas
