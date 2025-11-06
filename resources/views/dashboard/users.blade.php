@@ -191,6 +191,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+function getAuthHeaders() {
+    const token = localStorage.getItem('admin_token');
+    const headers = {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+}
+
 function loadUsers() {
     const params = new URLSearchParams({
         page: currentPage,
@@ -198,7 +210,7 @@ function loadUsers() {
         status: currentStatus
     });
     
-    fetch(`/dashboard/api/users?${params}`)
+    fetch(`/dashboard/api/users?${params}`, { headers: getAuthHeaders() })
         .then(response => response.json())
         .then(data => {
             renderUsersTable(data.data);
@@ -213,7 +225,7 @@ function loadUsers() {
 }
 
 function loadUserStats() {
-    fetch('/dashboard/api/user-stats')
+    fetch('/dashboard/api/user-stats', { headers: getAuthHeaders() })
         .then(response => response.json())
         .then(data => {
             document.getElementById('active-count').textContent = data.active_count || '0';

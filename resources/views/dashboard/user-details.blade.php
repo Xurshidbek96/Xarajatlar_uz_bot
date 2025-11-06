@@ -242,13 +242,20 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+function getAuthHeaders() {
+    const token = localStorage.getItem('admin_token');
+    const headers = {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+}
+
 function loadUserDetails() {
-    fetch(`/dashboard/users/${userId}`, {
-        headers: {
-            'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
+    fetch(`/dashboard/api/users/${userId}`, { headers: getAuthHeaders() })
         .then(response => response.json())
         .then(user => {
             // Update user avatar
@@ -291,12 +298,7 @@ function loadUserDetails() {
 }
 
 function loadUserStats() {
-    fetch(`/dashboard/users/${userId}/stats`, {
-        headers: {
-            'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
+    fetch(`/dashboard/api/users/${userId}/stats`, { headers: getAuthHeaders() })
         .then(response => response.json())
         .then(stats => {
             document.getElementById('total-income').textContent = formatCurrency(stats.total_income || 0);
@@ -319,12 +321,7 @@ function loadUserTransactions() {
         type: currentTransactionType
     });
     
-    fetch(`/dashboard/users/${userId}/transactions?${params}`, {
-        headers: {
-            'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
+    fetch(`/dashboard/api/users/${userId}/transactions?${params}`, { headers: getAuthHeaders() })
         .then(response => response.json())
         .then(data => {
             renderTransactionsTable(data.data);

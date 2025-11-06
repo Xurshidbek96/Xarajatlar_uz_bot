@@ -214,9 +214,11 @@
                     <ul class="dropdown-menu">
                         <li><a class="dropdown-item" href="#"><i class="fas fa-cog me-2"></i>Sozlamalar</a></li>
                         <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="#"><i class="fas fa-sign-out-alt me-2"></i>Chiqish</a></li>
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#adminLoginModal"><i class="fas fa-key me-2"></i>Admin kirish (token)</a></li>
+                        <li><a class="dropdown-item" href="#" id="adminLogout"><i class="fas fa-sign-out-alt me-2"></i>Chiqish</a></li>
                     </ul>
                 </div>
+                <span class="badge bg-light text-dark ms-3" id="authStatusBadge"><i class="fas fa-lock me-1"></i>Auth: Off</span>
             </div>
         </div>
     </nav>
@@ -266,12 +268,97 @@
         </div>
     </div>
 
+    <!-- Admin Login Modal -->
+    <div class="modal fade" id="adminLoginModal" tabindex="-1" aria-labelledby="adminLoginModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="adminLoginModalLabel">Admin token olish</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="adminChatId" class="form-label">Admin chat_id</label>
+                        <input type="text" class="form-control" id="adminChatId" placeholder="Masalan: 123456789">
+                        <div class="form-text">ENV dagi `ADMIN_CHAT_ID` bilan mos bo‘lishi kerak.</div>
+                    </div>
+                    <div id="adminLoginFeedback" class="text-danger d-none">Xatolik yuz berdi. Iltimos, qayta urinib ko‘ring.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Yopish</button>
+                    <button type="button" class="btn btn-primary" id="adminLoginSubmit">Token olish</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
+    <script>
+        function updateAuthStatusBadge() {
+            const badge = document.getElementById('authStatusBadge');
+            const hasToken = !!localStorage.getItem('admin_token');
+            if (hasToken) {
+                badge.classList.remove('bg-light', 'text-dark');
+                badge.classList.add('bg-success');
+                badge.innerHTML = '<i class="fas fa-lock-open me-1"></i>Auth: On';
+            } else {
+                badge.classList.remove('bg-success');
+                badge.classList.add('bg-light', 'text-dark');
+                badge.innerHTML = '<i class="fas fa-lock me-1"></i>Auth: Off';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            updateAuthStatusBadge();
+
+            document.getElementById('adminLoginSubmit').addEventListener('click', async function() {
+                const chatId = document.getElementById('adminChatId').value.trim();
+                const feedback = document.getElementById('adminLoginFeedback');
+                feedback.classList.add('d-none');
+                if (!chatId) {
+                    feedback.textContent = 'chat_id kiritish shart';
+                    feedback.classList.remove('d-none');
+                    return;
+                }
+                try {
+                    const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                    const resp = await fetch('/dashboard/api/admin/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': csrf
+                        },
+                        body: JSON.stringify({ chat_id: chatId })
+                    });
+                    if (!resp.ok) {
+                        throw new Error('Login failed');
+                    }
+                    const data = await resp.json();
+                    localStorage.setItem('admin_token', data.token);
+                    updateAuthStatusBadge();
+                    const modalEl = document.getElementById('adminLoginModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    modal.hide();
+                } catch (e) {
+                    feedback.textContent = 'Login muvaffaqiyatsiz. chat_id tekshiring.';
+                    feedback.classList.remove('d-none');
+                }
+            });
+
+            document.getElementById('adminLogout').addEventListener('click', function() {
+                localStorage.removeItem('admin_token');
+                updateAuthStatusBadge();
+            });
+        });
+    </script>
+
     @stack('scripts')
 </body>
 </html>

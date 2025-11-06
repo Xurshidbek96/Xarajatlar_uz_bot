@@ -129,8 +129,20 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeCharts();
 });
 
+function getAuthHeaders() {
+    const token = localStorage.getItem('admin_token');
+    const headers = {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+}
+
 function loadDashboardStats() {
-    fetch('/dashboard/api/stats')
+    fetch('/dashboard/api/stats', { headers: getAuthHeaders() })
         .then(response => response.json())
         .then(data => {
             document.getElementById('total-users').innerHTML = data.total_users || '0';
@@ -148,7 +160,7 @@ function loadDashboardStats() {
 }
 
 function loadRecentUsers() {
-    fetch('/dashboard/api/recent-users')
+    fetch('/dashboard/api/recent-users', { headers: getAuthHeaders() })
         .then(response => response.json())
         .then(data => {
             const tbody = document.getElementById('recent-users-table');

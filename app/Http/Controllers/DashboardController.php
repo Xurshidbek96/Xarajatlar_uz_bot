@@ -7,6 +7,7 @@ use App\Models\Transaction;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class DashboardController extends Controller
 {
@@ -184,5 +185,39 @@ class DashboardController extends Controller
                       ->paginate(20);
 
         return response()->json($users);
+    }
+
+    /**
+     * Admin login: chat_id orqali token berish
+     */
+    public function adminLogin(Request $request)
+    {
+        $request->validate([
+            'chat_id' => ['required']
+        ]);
+
+        $adminChatId = env('ADMIN_CHAT_ID');
+        if ($adminChatId) {
+            if ((string)$request->chat_id !== (string)$adminChatId) {
+                return response()->json(['message' => 'Forbidden'], 403);
+            }
+        }
+
+        $user = User::where('chat_id', $request->chat_id)->first();
+        if (!$user) {
+            return response()->json(['message' => 'User not found'], 404);
+        }
+
+        $token = $user->createToken('admin')->plainTextToken;
+        return response()->json(['token' => $token]);
+    }
+
+    /**
+     * User details API: doimiy JSON qaytaradi
+     */
+    public function userDetailsApi($id)
+    {
+        $user = User::withCount(['transactions'])->findOrFail($id);
+        return response()->json($user);
     }
 }
