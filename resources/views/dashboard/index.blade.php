@@ -164,6 +164,10 @@ function loadRecentUsers() {
         .then(response => response.json())
         .then(data => {
             const tbody = document.getElementById('recent-users-table');
+            if (!Array.isArray(data)) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-warning">Ma\'lumotlar uchun admin token talab qilinadi. Navbar orqali token oling.</td></tr>';
+                return;
+            }
             if (data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Hozircha foydalanuvchilar yo\'q</td></tr>';
                 return;
