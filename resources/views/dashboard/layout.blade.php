@@ -5,17 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Dashboard') - {{ config('app.name') }}</title>
-    
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:300,400,500,600" rel="stylesheet" />
-    
+
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
+
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
+
     <style>
         :root {
             --primary-color: #3b82f6;
@@ -193,7 +193,7 @@
             color: var(--secondary-color);
         }
     </style>
-    
+
     @stack('styles')
 </head>
 <body>
@@ -204,7 +204,7 @@
                 <i class="fas fa-chart-line me-2"></i>
                 Finance Bot Dashboard
             </a>
-            
+
             <div class="navbar-nav ms-auto">
                 <div class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
@@ -225,22 +225,23 @@
     </nav>
 
     <div class="container-fluid">
+        
         <div class="row">
             <!-- Sidebar -->
             <div class="col-md-3 col-lg-2 px-0">
                 <div class="sidebar">
                     <nav class="nav flex-column py-3">
-                        <a class="nav-link {{ request()->routeIs('dashboard.index') ? 'active' : '' }}" 
+                        <a class="nav-link {{ request()->routeIs('dashboard.index') ? 'active' : '' }}"
                            href="{{ route('dashboard.index') }}">
                             <i class="fas fa-tachometer-alt"></i>
                             Dashboard
                         </a>
-                        <a class="nav-link {{ request()->routeIs('dashboard.users*') ? 'active' : '' }}" 
+                        <a class="nav-link {{ request()->routeIs('dashboard.users*') ? 'active' : '' }}"
                            href="{{ route('dashboard.users') }}">
                             <i class="fas fa-users"></i>
                             Foydalanuvchilar
                         </a>
-                        <a class="nav-link {{ request()->routeIs('dashboard.broadcast') ? 'active' : '' }}" 
+                        <a class="nav-link {{ request()->routeIs('dashboard.broadcast') ? 'active' : '' }}"
                            href="{{ route('dashboard.broadcast') }}">
                             <i class="fas fa-bullhorn"></i>
                             Broadcast xabarlar
@@ -300,10 +301,10 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
+
     <script>
         function updateAuthStatusBadge() {
             const badge = document.getElementById('authStatusBadge');
