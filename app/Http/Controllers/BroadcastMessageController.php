@@ -6,6 +6,7 @@ use App\Models\BroadcastMessage;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use Telegram\Bot\Laravel\Facades\Telegram;
 
 class BroadcastMessageController extends Controller
@@ -36,7 +37,7 @@ class BroadcastMessageController extends Controller
             'title' => $validated['title'],
             'content' => $validated['content'],
             'status' => 'draft',
-            'created_by' => auth()->id(),
+            'created_by' => Auth::id(),
         ]);
 
         return response()->json($bm, 201);
