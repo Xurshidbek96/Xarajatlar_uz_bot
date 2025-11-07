@@ -225,7 +225,6 @@
     </nav>
 
     <div class="container-fluid">
-        
         <div class="row">
             <!-- Sidebar -->
             <div class="col-md-3 col-lg-2 px-0">
