@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Telegram\Bot\Laravel\Facades\Telegram;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\BroadcastMessageController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -15,6 +16,7 @@ Route::prefix('dashboard')->group(function () {
     Route::get('/users/{id}', [DashboardController::class, 'userDetails'])->name('dashboard.user.details');
     Route::get('/users/{id}/transactions', [DashboardController::class, 'userTransactions'])->name('dashboard.user.transactions');
     Route::get('/users/{id}/stats', [DashboardController::class, 'userStats'])->name('dashboard.user.stats');
+    Route::get('/broadcast', [DashboardController::class, 'broadcast'])->name('dashboard.broadcast');
 
     // Admin login (token olish) - sanctum talab qilmaydi
     Route::post('/api/admin/login', [DashboardController::class, 'adminLogin'])->name('dashboard.api.admin-login');
@@ -28,6 +30,14 @@ Route::prefix('dashboard')->group(function () {
         Route::get('/users/{id}', [DashboardController::class, 'userDetailsApi'])->name('dashboard.api.user.details');
         Route::get('/users/{id}/stats', [DashboardController::class, 'userStats'])->name('dashboard.api.user.stats');
         Route::get('/users/{id}/transactions', [DashboardController::class, 'userTransactions'])->name('dashboard.api.user.transactions');
+
+        // Broadcast messages CRUD + send
+        Route::get('/broadcast-messages', [BroadcastMessageController::class, 'index'])->name('dashboard.api.broadcast.index');
+        Route::post('/broadcast-messages', [BroadcastMessageController::class, 'store'])->name('dashboard.api.broadcast.store');
+        Route::get('/broadcast-messages/{id}', [BroadcastMessageController::class, 'show'])->name('dashboard.api.broadcast.show');
+        Route::put('/broadcast-messages/{id}', [BroadcastMessageController::class, 'update'])->name('dashboard.api.broadcast.update');
+        Route::delete('/broadcast-messages/{id}', [BroadcastMessageController::class, 'destroy'])->name('dashboard.api.broadcast.destroy');
+        Route::post('/broadcast-messages/{id}/send', [BroadcastMessageController::class, 'send'])->name('dashboard.api.broadcast.send');
     });
 });
 

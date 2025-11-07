@@ -220,4 +220,12 @@ class DashboardController extends Controller
         $user = User::withCount(['transactions'])->findOrFail($id);
         return response()->json($user);
     }
+
+    /**
+     * Broadcast xabarlar sahifasi
+     */
+    public function broadcast()
+    {
+        return view('dashboard.broadcast');
+    }
 }
