@@ -212,6 +212,7 @@
                         Admin
                     </a>
                     <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ route('dashboard.broadcast') }}"><i class="fas fa-bullhorn me-2"></i>Broadcast xabarlar</a></li>
                         <li><a class="dropdown-item" href="#"><i class="fas fa-cog me-2"></i>Sozlamalar</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#adminLoginModal"><i class="fas fa-key me-2"></i>Admin kirish (token)</a></li>
@@ -238,6 +239,11 @@
                            href="{{ route('dashboard.users') }}">
                             <i class="fas fa-users"></i>
                             Foydalanuvchilar
+                        </a>
+                        <a class="nav-link {{ request()->routeIs('dashboard.broadcast') ? 'active' : '' }}" 
+                           href="{{ route('dashboard.broadcast') }}">
+                            <i class="fas fa-bullhorn"></i>
+                            Broadcast xabarlar
                         </a>
                         <a class="nav-link" href="#">
                             <i class="fas fa-exchange-alt"></i>
