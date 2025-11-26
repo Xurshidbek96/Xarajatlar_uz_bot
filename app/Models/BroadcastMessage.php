@@ -16,5 +16,4 @@ class BroadcastMessage extends Model
         'sent_at',
         'created_by',
     ];
-    
 }
